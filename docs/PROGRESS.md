@@ -27,6 +27,7 @@ Last updated: 4 November 2026, Asia/Colombo.
 - Final Docker image refresh and browser verification completed. Commons searches returned 9 laptop, 7 computer and 8 data-center candidates; all remain subject to owner rights review.
 - Owner Google OAuth connection, saved owned-blog selection and live read-only connection test are verified. Eight existing posts were read without requesting their bodies; none of their titles matched the proposed Git unstaging topic.
 - A first original AI-assisted tutorial, "How to unstage a file in Git without losing your changes", is saved in NEEDS_REVIEW. Three official documentation links returned HTTP 200; automated quality passed (97, editorial-review warning). All four command scenarios preserved working-file bytes in a separate local repository. No API AI spending, approval, schedule or external publication occurred. The ignored `.local/first-article-result.json` contains the local editor link and verification result.
+- On the next DONE, confirmed first-live-test authorization is saved (4 November 2026, 14:34 UTC). Article version 5 still has status NEEDS_REVIEW and approvedAt=null. No article events, approval notes or schedules were added by the assistant. The remaining owner action is Review & approve → actual Review notes → Approve article, then confirm the APPROVED badge. Do not repeat the saved first-live authorization. Mock publishing and paused automation remain unchanged.
 
 ## Genuine owner checkpoints / pending live verification
 
