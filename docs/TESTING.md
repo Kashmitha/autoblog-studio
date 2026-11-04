@@ -1,21 +1,21 @@
 # Verification evidence
 
-Local verification on Windows, 4 November 2026. Results below are executed checks, not anticipated outcomes. External credentials were not supplied and no paid model request or live Blogger publication was made.
+Local verification on Windows, 4 November 2026. Results below are executed checks, not anticipated outcomes. The initial build used mocked account integrations. The owner subsequently configured Google OAuth; live read-only blog discovery has now been verified. No paid model request or live Blogger publication was made during verification.
 
-| Check                               | Executed result                                                                                                                        |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Prisma generation                   | Passed with Prisma 6.19.3; stop native API/worker before replacing the Windows engine DLL                                              |
-| PostgreSQL migrations               | Initial + publication-safety migrations applied to local PostgreSQL 17 and isolated autoblog_test                                      |
-| TypeScript                          | Backend and frontend passed                                                                                                            |
-| Backend production build            | Passed                                                                                                                                 |
-| Next.js production build            | Passed with Next 16.4.5 / webpack                                                                                                      |
-| Jest unit tests                     | 43 passed across 4 suites                                                                                                              |
-| NestJS/PostgreSQL/Redis integration | 24 passed in isolated autoblog_test and autoblog-publish-test queue                                                                    |
-| Playwright / Edge                   | Passed against the final Docker application (2 comprehensive Edge tests: localhost and 127.0.0.1, desktop + mobile)                    |
-| Source-link verifier                | Actual HTTPS request to https://docs.docker.com/build/cache/ returned HTTP 200 (534,479 decoded characters at time checked)            |
-| Production dependency audit         | 0 known vulnerabilities after compatible fixes/overrides; final repeat in PROGRESS.md                                                  |
-| Full dependency audit               | 20 development-tool findings (4 low, 16 moderate) in Jest/glob/minimatch/deepmerge dependency paths; no forced major downgrade applied |
-| Docker application images/runtime   | All app images built; migrations/seed exited successfully; frontend/API/worker running; database/Redis/API healthy                     |
+| Check                               | Executed result                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prisma generation                   | Passed with Prisma 6.19.3; stop native API/worker before replacing the Windows engine DLL                                                     |
+| PostgreSQL migrations               | Initial + publication-safety migrations applied to local PostgreSQL 17 and isolated autoblog_test                                             |
+| TypeScript                          | Backend and frontend passed                                                                                                                   |
+| Backend production build            | Passed                                                                                                                                        |
+| Next.js production build            | Passed with Next 16.4.5 / webpack                                                                                                             |
+| Jest unit tests                     | 47 passed across 4 suites                                                                                                                     |
+| NestJS/PostgreSQL/Redis integration | 24 passed in isolated autoblog_test and autoblog-publish-test queue                                                                           |
+| Playwright / Edge                   | Passed against the final Docker application (4 Edge checks across localhost and 127.0.0.1: full workflow plus populated/empty blog selectors) |
+| Source-link verifier                | Actual HTTPS request to https://docs.docker.com/build/cache/ returned HTTP 200 (534,479 decoded characters at time checked)                   |
+| Production dependency audit         | 0 known vulnerabilities after compatible fixes/overrides; final repeat in PROGRESS.md                                                         |
+| Full dependency audit               | 20 development-tool findings (4 low, 16 moderate) in Jest/glob/minimatch/deepmerge dependency paths; no forced major downgrade applied        |
+| Docker application images/runtime   | All app images built; migrations/seed exited successfully; frontend/API/worker running; database/Redis/API healthy                            |
 
 ## What automated tests cover
 
@@ -65,8 +65,10 @@ E2E temporarily creates a disposable local test login, creates a clearly named f
 
 ## Remaining live checks
 
-Google OAuth consent/refresh/revocation, real owned-blog selection/draft/publication, first-live-test gate with actual credentials, actual scheduled Blogger timing, a paid AI response/usage-price comparison, Unsplash account/rate-limit compliance, real Google reporting reconciliation, Adsterra publisher approval and actual earnings import. Commons availability can be checked without credentials, but licenses still need per-image human review. A passing automated quality score never certifies factual accuracy, originality, image rights, policy compliance, advertising approval or rankings.
+Google token-expiry/revocation behavior, owner blog selection and real draft/publication, first-live-test gate with actual credentials, actual scheduled Blogger timing, a paid AI response/usage-price comparison, Unsplash account/rate-limit compliance, real Google reporting reconciliation, Adsterra publisher approval and actual earnings import. Commons availability can be checked without credentials, but licenses still need per-image human review. A passing automated quality score never certifies factual accuracy, originality, image rights, policy compliance, advertising approval or rankings.
 
 Backup and restore verification passed into a separate database with 1 owner, 1 settings row and 0 articles. Final Commons searches returned 9 laptop, 7 computer and 8 data-center candidates. Final owner-login check passed without printing credentials. OpenAPI exposed 45 endpoint paths and explicit article request fields. The GitHub Actions workflow is created; remote CI has not been run because no remote repository was configured.
 
 Origin regression verification: development loopback aliases sign in successfully, authenticated writes still require CSRF, and wrong-port/unrelated/missing/null origins remain rejected. Production and non-loopback development configurations receive no extra origins. Docker production build passed and the refreshed application passed both browser projects.
+
+Blog-discovery regression: mock tests cover per-user wrappers, ordinary item lists, empty responses and incomplete entries. Browser tests verify a selectable populated list, owned-blog count feedback and explicit genuine-empty guidance. A live authenticated read-only request through the local app returned one blog with the fields needed for selection. No identifying Google account data, credentials, blog IDs or blog URLs are committed in this evidence.

@@ -21,6 +21,7 @@ export function Connections({ notify }: ViewProps) {
   const [blogs, setBlogs] = useState<
       { id: string; name: string; url: string }[]
     >([]),
+    [blogsLoaded, setBlogsLoaded] = useState(false),
     [blogId, setBlogId] = useState(""),
     [confirm, setConfirm] = useState(""),
     [disconnect, setDisconnect] = useState(false),
@@ -75,8 +76,14 @@ export function Connections({ notify }: ViewProps) {
                       disabled={a.busy}
                       onClick={() =>
                         a.run(async () => {
-                          await api("/integrations/google/test");
-                          notify("Google connection verified.");
+                          const result = await api<{ ownedBlogs: number }>(
+                            "/integrations/google/test",
+                          );
+                          notify(
+                            result.ownedBlogs > 0
+                              ? `Google connection verified. ${result.ownedBlogs} owned blog${result.ownedBlogs === 1 ? "" : "s"} found.`
+                              : "Google connection verified, but no owned blogs were returned. Check your Blogger account.",
+                          );
                         })
                       }
                     >
@@ -89,6 +96,7 @@ export function Connections({ notify }: ViewProps) {
                       onClick={() =>
                         a.run(async () => {
                           setBlogs(await api("/integrations/google/blogs"));
+                          setBlogsLoaded(true);
                         })
                       }
                     >
@@ -97,7 +105,7 @@ export function Connections({ notify }: ViewProps) {
                   </div>
                   {blogs.length > 0 && (
                     <>
-                      <Field label="Owned / authored blog">
+                      <Field label="Owned blog">
                         <select
                           value={blogId}
                           onChange={(e) => setBlogId(e.target.value)}
@@ -123,6 +131,24 @@ export function Connections({ notify }: ViewProps) {
                         Select blog
                       </button>
                     </>
+                  )}
+                  {blogsLoaded && blogs.length === 0 && (
+                    <Notice tone="warning">
+                      <strong>No owned blogs found.</strong>
+                      <p>
+                        Open{" "}
+                        <a
+                          href="https://www.blogger.com/"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Blogger
+                        </a>{" "}
+                        and confirm your blog appears under the Google account
+                        you connected. If it belongs to another account,
+                        reconnect using that account. Then load the list again.
+                      </p>
+                    </Notice>
                   )}
                   <div className="form-actions">
                     <button

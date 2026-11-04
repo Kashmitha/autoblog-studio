@@ -13,23 +13,23 @@ Last updated: 4 November 2026, Asia/Colombo.
 - Explicit editorial state machine, versioned approvals and quality reports, human source-support notes, actual public HTTPS link verification, heuristic duplication/content checks, image rights/credits, disclosure and unsafe-HTML controls.
 - Original PNG/JPEG/WebP upload/private preview, public HTTPS delivery gate, reviewed Wikimedia and Unsplash search/import, download-event tracking and visible attribution.
 - Pluggable AI provider using official Responses structured outputs, reviewed source context, model/token limits, PostgreSQL spending reservations, daily limits, conservative unknown-outcome accounting. Paid services disabled.
-- Official Google OAuth with state/PKCE/offline refresh, owned-blog selection/test/read/disconnect, draft/update/publish adapter, explicit first-live-test gate, persistent insertion intent and remote-post recovery. No actual Google credentials or posts used.
+- Official Google OAuth with state/PKCE/offline refresh, owned-blog selection/test/read/disconnect, draft/update/publish adapter, explicit first-live-test gate, persistent insertion intent and remote-post recovery. Initial build used mock Google integrations; live read-only connection verification is recorded below.
 - Dedicated BullMQ worker, PostgreSQL-first schedules, durable reconciliation, backoff, permanent-failure records, pause/resume, daily Asia/Colombo limits, seven-day recurring backlog scheduling, emergency stop, pinned blog destinations and worker heartbeats.
 - Manual/CSV financial and traffic records, source labels, estimated/actual separation, net profit/RPM/break-even/monthly calculations, Google reporting adapters, sitemap checks, update reminders and dashboard failure notifications.
 - Full local Docker application images built; migration/seed init container completed; API/worker/frontend running with healthy database/Redis and API proxy.
 - GitHub Actions workflow and Windows setup/password-reset/backup scripts. A real backup restored successfully into an isolated database (1 owner, 1 settings row, 0 articles).
-- Native production builds and type checks passed. 43 unit tests across 4 suites and 24 integration tests passed. Full Playwright/Edge workflow passed against the local Docker stack through both localhost and 127.0.0.1 (2 browser tests).
+- Native production builds and type checks passed. 47 unit tests across 4 suites and 24 integration tests passed. Four Playwright/Edge checks passed against the local Docker stack through both localhost and 127.0.0.1, including populated and genuinely empty blog selectors.
 - Production npm dependency audit: 0 known vulnerabilities. Development-only Jest/glob/minimatch/deepmerge paths retain 20 advisories (4 low, 16 moderate); no unsafe forced downgrade.
 - Generated local owner password rotated after development; prior sessions revoked. Final E2E uses a disposable login and removes fixtures. No working-database sample income/traffic/publications retained.
 
 ## Current
 
 - Final Docker image refresh and browser verification completed. Commons searches returned 9 laptop, 7 computer and 8 data-center candidates; all remain subject to owner rights review.
-- Ready for checkpoint B+C: owner Google Cloud/OAuth setup. The local Docker application remains running at http://localhost:3100.
+- Owner Google OAuth connection and live read-only blog discovery are verified. The available blog can now be selected in the refreshed connections page at http://localhost:3100/connections.
 
 ## Genuine owner checkpoints / pending live verification
 
-- B+C: Google Cloud project, Blogger API enablement, Web OAuth credentials, owner consent and actual blog selection. Root .env currently has no Google credentials.
+- B+C: Google Cloud setup, credentials and owner consent are configured. Read-only discovery succeeds; owner selection of the intended blog in the UI remains the next action.
 - Separate explicit first live publishing authorization, a reviewed real article, and live scheduling timing/duplicate/error verification. Do not perform a real post merely because the build was authorized.
 - D optional: API key/current model prices/explicit paid billing authorization and one real AI generation. Disabled until the owner chooses to spend.
 - E optional: Unsplash developer key/approval and actual account-rule verification. Commons/original-image handling needs no paid key.
@@ -53,10 +53,14 @@ Sandbox network/Docker access, reserved PostgreSQL ports, Next generated-folder 
 ## Next actions after DONE
 
 1. Inspect .env key presence without printing secrets; keep mock publishing and paid AI disabled.
-2. Recreate Docker API/worker to load changed environment, test Google connection, verify selected owned blog.
+2. Recreate Docker API/worker only if environment values changed; test the existing Google connection and verify the selected owned blog.
 3. Respect the separate first-live-test authorization before any real external write.
 4. Verify actual configured integrations incrementally and update this evidence without restarting the project.
 
 ## Sign-in origin fix — 4 November 2026
 
 Reproduced localhost:3100 reaching authentication while 127.0.0.1:3100 returned the origin error. Added a shared exact-origin allowlist for CORS and mutation guards. Development permits only localhost/127.0.0.1/IPv6 loopback aliases with the configured scheme and port. Production retains a single configured origin. Missing, opaque, unrelated-host and wrong-port origins remain denied; CSRF remains required for authenticated mutations. Rebuilt/restarted Docker backend and worker. Verified 43 unit tests, 24 isolated integration tests and 2 real-browser workflows, including sign-in and editing through both local hostnames. Google OAuth should continue using its configured localhost redirect host.
+
+## Blog discovery fix — 4 November 2026
+
+Live read-only diagnosis confirmed Google returns per-user blog wrappers when fetchUserInfo=true. The adapter incorrectly read items instead of blogUserInfos[].blog, hiding an available blog. Corrected normalization while retaining the ADMIN filter and ordinary-list compatibility. Added an explicit genuine-empty state and a discovered-blog count to connection-test feedback. Both Docker production builds/type checks passed, 47 unit tests passed and all 4 browser checks passed. The authenticated live app API now returns one selectable owned blog. Verification did not select a blog, revoke consent or publish a post. Do not ask the owner to redo Google Cloud setup.

@@ -115,14 +115,16 @@ export class GoogleService {
   async blogs() {
     const auth = await this.client();
     const api = blogger({ version: "v3", auth });
+    const { data } = await api.blogs.listByUser({
+      userId: "self",
+      role: ["ADMIN"],
+      fetchUserInfo: true,
+    });
+    // fetchUserInfo changes the response from items[] to blogUserInfos[].blog.
     return (
-      (
-        await api.blogs.listByUser({
-          userId: "self",
-          role: ["ADMIN"],
-          fetchUserInfo: true,
-        })
-      ).data.items || []
+      data.blogUserInfos?.flatMap(({ blog }) => (blog?.id ? [blog] : [])) ??
+      data.items ??
+      []
     );
   }
   async select(blogId: string) {
@@ -130,7 +132,7 @@ export class GoogleService {
     const selected = blogs.find((b) => b.id === blogId);
     if (!selected)
       throw new BadRequestException(
-        "Choose a blog owned or authored by the connected account.",
+        "Choose a blog owned by the connected account.",
       );
     return this.db.integration
       .update({
