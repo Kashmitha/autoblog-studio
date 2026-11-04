@@ -1,0 +1,1 @@
+module.exports = { testEnvironment: 'node', testMatch: ['**/tests/**/*.spec.ts'], testPathIgnorePatterns: ['integration'], transform: { '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json' }] }, collectCoverageFrom: ['src/domain/**/*.ts'] };

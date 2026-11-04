@@ -1,0 +1,11 @@
+ALTER TABLE "Article" ADD COLUMN "remoteBlogId" TEXT;
+ALTER TABLE "PublishJob" ADD COLUMN "blogId" TEXT;
+CREATE UNIQUE INDEX "Article_remotePostId_key" ON "Article"("remotePostId");
+ALTER TABLE "FinanceEntry" ADD CONSTRAINT "finance_kind" CHECK ("kind" IN ('ACTUAL_REVENUE','ESTIMATED_REVENUE','EXPENSE'));
+ALTER TABLE "FinanceEntry" ADD CONSTRAINT "finance_positive_usd" CHECK ("amount" >= 0 AND "currency" = 'USD');
+ALTER TABLE "TrafficMetric" ADD CONSTRAINT "traffic_nonnegative" CHECK (("pageviews" IS NULL OR "pageviews" >= 0) AND ("impressions" IS NULL OR "impressions" >= 0) AND ("clicks" IS NULL OR "clicks" >= 0));
+ALTER TABLE "TrafficMetric" ADD CONSTRAINT "clicks_within_impressions" CHECK ("clicks" IS NULL OR "impressions" IS NULL OR "clicks" <= "impressions");
+ALTER TABLE "AutomationSettings" ADD CONSTRAINT "daily_limit" CHECK ("dailyLimit" BETWEEN 1 AND 10);
+ALTER TABLE "AiUsage" ADD CONSTRAINT "usage_nonnegative" CHECK ("reservedUsd" >= 0 AND ("costUsd" IS NULL OR "costUsd" >= 0));
+ALTER TABLE "PublishJob" ADD CONSTRAINT "publish_mode" CHECK ("mode" IN ('mock','live'));
+ALTER TABLE "PublishJob" ADD CONSTRAINT "publish_state" CHECK ("state" IN ('PENDING','RUNNING','SUCCEEDED','MOCK_SUCCEEDED','FAILED','CANCELED'));

@@ -1,0 +1,36 @@
+{
+  "name": "autoblog-studio",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web,worker -c cyan,magenta,yellow \"npm run dev -w backend\" \"npm run dev -w frontend\" \"npm run worker:dev -w backend\"",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "test": "npm run test -w backend",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:e2e": "playwright test",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
+    "db:generate": "npm run db:generate -w backend",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:seed": "npm run db:seed -w backend",
+    "setup": "node scripts/setup.mjs",
+    "services": "docker compose up -d postgres redis",
+    "audit:prod": "npm audit --omit=dev"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
+    "prettier": "^3.9.10"
+  },
+  "overrides": {
+    "multer": "^2.5.0",
+    "deepmerge-ts": "^8.0.2"
+  }
+}

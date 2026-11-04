@@ -1,0 +1,1 @@
+module.exports = { ...require('./jest.config.cjs'), testMatch: ['**/tests/**/*.integration.spec.ts'], testPathIgnorePatterns: [], setupFiles:['<rootDir>/tests/integration-env.cjs'],testTimeout:30000 };

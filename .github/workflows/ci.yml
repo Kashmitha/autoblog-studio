@@ -1,0 +1,50 @@
+name: Verify AutoBlog Studio
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: autoblog
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: autoblog
+        ports: ["15432:5432"]
+        options: --health-cmd "pg_isready -U autoblog" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["56379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://autoblog:ci_test_only@localhost:15432/autoblog?schema=public
+      REDIS_URL: redis://localhost:56379
+      BLOGGER_MODE: mock
+      AI_ENABLED: false
+      AI_BILLING_AUTHORIZED: false
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run setup
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm test
+      - run: npm run test:integration
+      - run: npm run build
+      - run: npx playwright install --with-deps msedge
+      - name: Start local services
+        run: |
+          npm run start -w backend > /tmp/autoblog-api.log 2>&1 &
+          npm run worker -w backend > /tmp/autoblog-worker.log 2>&1 &
+          npm run start -w frontend > /tmp/autoblog-web.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:3100 >/dev/null && curl -fsS http://localhost:4000/api/health >/dev/null && break; sleep 2; done
+      - run: npm run test:e2e
+      - run: npm run audit:prod
