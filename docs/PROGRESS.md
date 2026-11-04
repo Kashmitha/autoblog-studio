@@ -7,7 +7,7 @@ Last updated: 4 November 2026, Asia/Colombo.
 - Read the full owner brief; initialized the empty workspace and Git repository.
 - Verified Windows, Node 26.13.0 LTS (Lithium), npm 11.20, Git and Docker Desktop. Resolved Windows reserved ports without stopping unrelated applications.
 - npm workspaces: Next.js 16.4.5, React 19.3.1, NestJS 11.2.8, Prisma 6.19.3, BullMQ 5.81.5, TypeScript 5.9.3, Tailwind 4.
-- PostgreSQL 17 and Redis 7 persistent local containers; two Prisma migrations, indexes, uniqueness and database check constraints; owner/settings seed without fabricated business records.
+- PostgreSQL 17 and Redis 7 persistent local containers; three Prisma migrations, indexes, uniqueness and database check constraints; owner/settings seed without fabricated business records.
 - NestJS feature modules, dependency injection, class DTO validation, OpenAPI request schemas, session/CSRF/origin guards, rate limits, safe errors, audit logs and AES-GCM integration-token encryption.
 - Next.js responsive light/dark dashboard, article management/editor and sandbox preview, planner, generator, media, calendar, automation, connections, monetization, traffic/SEO, expenses, job history, settings and help.
 - Explicit editorial state machine, versioned approvals and quality reports, human source-support notes, actual public HTTPS link verification, heuristic duplication/content checks, image rights/credits, disclosure and unsafe-HTML controls.
@@ -26,18 +26,18 @@ Last updated: 4 November 2026, Asia/Colombo.
 
 - Final Docker image refresh and browser verification completed. Commons searches returned 9 laptop, 7 computer and 8 data-center candidates; all remain subject to owner rights review.
 - Owner Google OAuth connection, saved owned-blog selection and live read-only connection test are verified. Eight existing posts were read without requesting their bodies; none of their titles matched the proposed Git unstaging topic.
-- A first original AI-assisted tutorial, "How to unstage a file in Git without losing your changes", is saved in NEEDS_REVIEW. Three official documentation links returned HTTP 200; automated quality passed (97, editorial-review warning). All four command scenarios preserved working-file bytes in a separate local repository. No API AI spending, approval, schedule or external publication occurred. The ignored `.local/first-article-result.json` contains the local editor link and verification result.
-- Confirmed first-live-test authorization is saved (4 November 2026, 20:04 Asia/Colombo). Following the owner's public-footer preference, article version 6 still has status NEEDS_REVIEW and approvedAt=null; its public footer is now off. No approval notes or schedules were added by the assistant. Publication remains paused while the owner reviews the article and Blogger metadata limitations. Do not repeat the saved first-live authorization.
+- The first original AI-assisted tutorial, "How to unstage a file in Git without losing your changes", is PUBLISHED after the owner's saved editorial approval and explicit first-live-test authorization. Three official documentation links returned HTTP 200; automated quality passed (97, editorial-review warning). All four Git scenarios preserved working-file bytes in a separate local repository. No paid API AI request was made.
+- The one authorized live test succeeded on 4 November 2026 at 20:31:32 Asia/Colombo. Version 6's approved body and labels match Blogger exactly, with the public AI footer off. One matching remote post exists. BLOGGER_MODE is now live; automation was paused again immediately after the test. The ignored `.local/first-live-result.json` contains the public URL and job timings. Do not republish this article or repeat the saved authorization.
 
 ## Genuine owner checkpoints / pending live verification
 
 - B+C complete: Google Cloud setup, credentials, owner consent, intended owned-blog selection and read-only connection test are verified. Do not repeat this setup.
-- Separate explicit first live publishing authorization, a reviewed real article, and live scheduling timing/duplicate/error verification. Do not perform a real post merely because the build was authorized.
+- First-live authorization, human approval, real publication, due-time handling and completed-job duplicate protection are verified for one actual article. Public desktop/mobile rendering, three citations, labels and canonical URL are verified. Live image publishing, long-term recurring scheduling and actual remote error/token-expiry recovery still need verification; isolated error/recovery tests pass.
 - D optional: API key/current model prices/explicit paid billing authorization and one real AI generation. Disabled until the owner chooses to spend.
 - E optional: Unsplash developer key/approval and actual account-rule verification. Commons/original-image handling needs no paid key.
 - F: Adsterra publisher registration/site approval/ad placement and actual report reconciliation. Current implementation deliberately uses manual/CSV reporting, not an untested automatic Adsterra API client.
 - G optional: verified Search Console/GA4 properties, enabled APIs, read-only OAuth scopes and actual report comparison.
-- H: Any paid/remote production deployment requires explicit approval. No hosting purchase or external publishing took place.
+- H: Any paid/remote production deployment requires explicit approval. No hosting purchase occurred; only the specifically authorized Blogger test post was published.
 
 ## Limits and follow-up
 
@@ -54,9 +54,9 @@ Sandbox network/Docker access, reserved PostgreSQL ports, Next generated-folder 
 
 ## Next actions after DONE
 
-1. Inspect saved editorial approval and the separate first-live authorization. A DONE response about blog selection does not grant either.
-2. Keep paid AI disabled. Only after explicit owner approval of the real public test, change BLOGGER_MODE to live and recreate both backend and worker if needed.
-3. Queue only the approved first-test article with the explicit first-test flag. Resume automation only within that authorization, then verify the actual remote result and duplicate protection. Never treat a mock result as a live verification.
+1. The initial approved article is already PUBLISHED; inspect the saved result rather than scheduling it again. BLOGGER_MODE is live and automation is paused after the single test.
+2. Keep paid AI disabled. New articles still require human editorial approval; publishing requires the owner to resume automation or authorize the next scheduled run.
+3. Ask only for account-specific next actions the owner chooses, such as optional paid AI, publisher registration or read-only reporting consent. Do not repeat Google setup, first-live authorization or the completed first publication.
 4. Verify actual configured integrations incrementally and update this evidence without restarting the project.
 
 ## Sign-in origin fix — 4 November 2026
@@ -82,3 +82,11 @@ This preference supersedes the earlier mandatory public-disclosure implementatio
 Applied the default-only database migration, rebuilt/recreated backend, worker and frontend, then switched off the existing tutorial's footer through the authenticated article API. Article text and labels are unchanged; it is version 6, NEEDS_REVIEW, quality passed, with zero attached images and zero publish jobs. Paid AI remains disabled; mock publishing and paused automation remain unchanged. Tests: 47 unit, 27 isolated integration, 4 browser checks passed. Mocked worker tests verify exact Blogger payloads with the footer on/off and labels included.
 
 The editor now identifies which metadata syncs: labels do; the excerpt and canonical reference do not configure Blogger search description, permalink or canonical tags. Custom permalink/search description require Blogger's editor; no remote-draft review step is implemented yet. For this short Git tutorial, code examples are sufficient; an original terminal screenshot is optional. Existing license/alt/public-delivery gates still apply to any image.
+
+## First authorized live publication — 4 November 2026
+
+Confirmed the owner saved editorial approval for version 6 and had already granted the separate first-live authorization. Verified selected-blog ownership, no other approved backlog, zero pending jobs and no remote post with the same title. Changed only BLOGGER_MODE in the ignored .env to live and recreated backend/worker. Paid AI remained disabled.
+
+Scheduled exactly one job with the explicit first-test flag for 20:31:24 Asia/Colombo. It stayed unpublished before its due time. The worker started 75 milliseconds after the scheduled time and Blogger confirmed LIVE at 20:31:32, on attempt 1. Automation was paused again immediately after success. Actual scheduling evidence applies to this short-delay test, not yet to long-running daily recurrence.
+
+Authenticated read-back verified exact approved HTML, all three labels, three primary citations and no appended AI footer. Full remote enumeration found one matching post and nine total posts, versus eight before the test. Replaying the completed local job through a fail-on-any-remote-call adapter made no remote calls and did not increase its attempt count. A public browser returned HTTP 200 and displayed the article/code/citations; canonical matched the returned URL, no page-level noindex meta was present and the mobile page had no horizontal document overflow. Desktop/mobile screenshots and identifying post/job data are kept only under ignored .local files. These checks do not establish Google indexing, traffic, revenue or image-publication behavior.

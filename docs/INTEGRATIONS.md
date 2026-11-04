@@ -1,6 +1,6 @@
 # Integration contracts and research
 
-Official documentation checked on 4 November 2026. Availability, limits, policies, models and prices must be checked again before live use. No external account was accessed or real post published during implementation.
+Official documentation checked on 4 November 2026. Availability, limits, policies, models and prices must be checked again before live use. Initial implementation used mocks; subsequent owner-authorized external verification is recorded in TESTING.md and PROGRESS.md.
 
 ## Framework decisions
 

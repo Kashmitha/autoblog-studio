@@ -37,7 +37,14 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
     ).toBeVisible();
     await expect(page.getByText("No actual earnings recorded")).toBeVisible();
     await expect(
-      page.getByText("Mock publishing", { exact: false }).first(),
+      page
+        .getByText(
+          process.env.BLOGGER_MODE === "live"
+            ? "Live integration"
+            : "Mock publishing",
+          { exact: false },
+        )
+        .first(),
     ).toBeVisible();
     await page.getByRole("link", { name: "New article", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
