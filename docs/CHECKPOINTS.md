@@ -62,8 +62,8 @@ Complete these steps and reply DONE.
 
 ## F — Adsterra publisher account and placements
 
-1. Visit the [official publisher portal](https://publishers.adsterra.com/), register as appropriate and add your actual Blogger site.
-2. Complete any required ownership verification, review or policy approval. The app cannot guarantee acceptance or earnings.
+1. Visit the [official publisher portal](https://publishers.adsterra.com/). Sign in if you already have an account; otherwise register as a publisher and verify your email.
+2. Open Websites → Add Website. Enter the full HTTPS URL of your existing blog, select its actual category and request a display/native banner unit. Submit for review; report the actual Pending or Approved status. Once approved, open the site → Get code and save the issued snippet locally for placement review. Complete any required ownership verification. The app cannot guarantee acceptance or earnings.
 3. Review current Blogger and Adsterra rules and manually place only approved, non-disruptive ad code into an appropriate Blogger theme/gadget location. Avoid misleading ads, forced redirects and aggressive overlays.
 4. When actual reports exist, export the official CSV, normalize to the documented columns and import into Monetization. Give each report a stable unique reference. Keep estimates separate.
 5. Verify imported totals against the publisher report. No dashboard scraping or automated login is used. API sync is a future extension; ADSTERRA_API_KEY is currently unused.
