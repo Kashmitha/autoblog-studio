@@ -86,6 +86,36 @@ test("rejects cross-origin and missing-CSRF mutations", async () => {
     .send({ title: "Rejected test", niche: "Docker" })
     .expect(403);
 });
+
+test("imported AI-assisted drafts retain provenance and disclosure across edits", async () => {
+  const created = await mutate("post", "/articles", {
+    title: "An imported assisted tutorial for editorial review",
+    niche: "Git & GitHub",
+    html: "<h2>Review required</h2><p>Original assisted draft.</p>",
+    aiAssisted: true,
+    disclosure: false,
+  }).expect(201);
+  expect(created.body).toMatchObject({
+    aiAssisted: true,
+    disclosure: true,
+    status: "NEEDS_REVIEW",
+    approvedAt: null,
+  });
+  const edited = await mutate("patch", "/articles/" + created.body.id, {
+    title: created.body.title,
+    niche: created.body.niche,
+    version: created.body.version,
+    aiAssisted: false,
+    disclosure: false,
+  }).expect(200);
+  expect(edited.body).toMatchObject({
+    aiAssisted: true,
+    disclosure: true,
+    status: "NEEDS_REVIEW",
+    approvedAt: null,
+    version: created.body.version + 1,
+  });
+});
 test("loopback browser aliases can sign in and mutate only with a valid CSRF token", async () => {
   const alias = "http://127.0.0.1:3100";
   const local = request.agent(app.getHttpServer());

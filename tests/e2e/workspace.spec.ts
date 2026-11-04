@@ -54,10 +54,16 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
     await page
       .getByLabel("Article HTML")
       .fill("<h2>Draft test</h2><p>This is deliberately incomplete.</p>");
+    await page.getByLabel("Prepared with AI assistance").check();
+    await expect(page.getByLabel("AI-assistance disclosure")).toBeChecked();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(
       page.getByText("Draft saved. Approval reset for review."),
     ).toBeVisible();
+    await expect(page.getByLabel("Prepared with AI assistance")).toBeChecked();
+    await expect(page.getByLabel("Prepared with AI assistance")).toBeDisabled();
+    await expect(page.getByLabel("AI-assistance disclosure")).toBeChecked();
+    await expect(page.getByLabel("AI-assistance disclosure")).toBeDisabled();
     await page.getByRole("button", { name: "Run quality checks" }).click();
     await expect(page.getByText("THIN CONTENT", { exact: true })).toBeVisible();
     await expect(page.getByText("NO SOURCES", { exact: true })).toBeVisible();

@@ -63,6 +63,7 @@ export default function Editor({
         excerpt: doc.excerpt,
         html: doc.html,
         labels: doc.labels,
+        aiAssisted: doc.aiAssisted,
         disclosure: doc.disclosure,
         version: article.version,
         ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
@@ -280,6 +281,20 @@ export default function Editor({
                     }{" "}
                     words
                   </span>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      disabled={locked || article.aiAssisted}
+                      checked={doc.aiAssisted}
+                      onChange={(e) =>
+                        update({
+                          aiAssisted: e.target.checked,
+                          disclosure: e.target.checked || doc.disclosure,
+                        })
+                      }
+                    />
+                    Prepared with AI assistance
+                  </label>
                   <label className="checkbox-label">
                     <input
                       type="checkbox"

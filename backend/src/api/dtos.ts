@@ -51,6 +51,10 @@ export class ArticleDto {
   @ApiProperty({ required: false, type: Boolean })
   @IsOptional()
   @IsBoolean()
+  aiAssisted?: boolean;
+  @ApiProperty({ required: false, type: Boolean })
+  @IsOptional()
+  @IsBoolean()
   disclosure?: boolean;
   @ApiProperty({ required: false, type: Number })
   @IsOptional()
