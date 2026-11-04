@@ -18,7 +18,7 @@ Last updated: 4 November 2026, Asia/Colombo.
 - Manual/CSV financial and traffic records, source labels, estimated/actual separation, net profit/RPM/break-even/monthly calculations, Google reporting adapters, sitemap checks, update reminders and dashboard failure notifications.
 - Full local Docker application images built; migration/seed init container completed; API/worker/frontend running with healthy database/Redis and API proxy.
 - GitHub Actions workflow and Windows setup/password-reset/backup scripts. A real backup restored successfully into an isolated database (1 owner, 1 settings row, 0 articles).
-- Native production builds and type checks passed. 34 unit tests across 3 suites and 23 integration tests passed. Full Playwright/Edge workflow passed against the local Docker stack.
+- Native production builds and type checks passed. 43 unit tests across 4 suites and 24 integration tests passed. Full Playwright/Edge workflow passed against the local Docker stack through both localhost and 127.0.0.1 (2 browser tests).
 - Production npm dependency audit: 0 known vulnerabilities. Development-only Jest/glob/minimatch/deepmerge paths retain 20 advisories (4 low, 16 moderate); no unsafe forced downgrade.
 - Generated local owner password rotated after development; prior sessions revoked. Final E2E uses a disposable login and removes fixtures. No working-database sample income/traffic/publications retained.
 
@@ -56,3 +56,7 @@ Sandbox network/Docker access, reserved PostgreSQL ports, Next generated-folder 
 2. Recreate Docker API/worker to load changed environment, test Google connection, verify selected owned blog.
 3. Respect the separate first-live-test authorization before any real external write.
 4. Verify actual configured integrations incrementally and update this evidence without restarting the project.
+
+## Sign-in origin fix — 4 November 2026
+
+Reproduced localhost:3100 reaching authentication while 127.0.0.1:3100 returned the origin error. Added a shared exact-origin allowlist for CORS and mutation guards. Development permits only localhost/127.0.0.1/IPv6 loopback aliases with the configured scheme and port. Production retains a single configured origin. Missing, opaque, unrelated-host and wrong-port origins remain denied; CSRF remains required for authenticated mutations. Rebuilt/restarted Docker backend and worker. Verified 43 unit tests, 24 isolated integration tests and 2 real-browser workflows, including sign-in and editing through both local hostnames. Google OAuth should continue using its configured localhost redirect host.

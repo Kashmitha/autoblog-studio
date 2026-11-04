@@ -1,10 +1,17 @@
 import { config as dotenv } from "dotenv";
 import { resolve } from "node:path";
+import { allowedFrontendOrigins } from "./domain/origins";
 dotenv({ path: resolve(__dirname, "../../.env"), quiet: true });
+const production = process.env.NODE_ENV === "production";
+const frontendOrigins = allowedFrontendOrigins(
+  process.env.FRONTEND_URL || "http://localhost:3100",
+  production,
+);
 export const env = {
   port: Number(process.env.PORT || 4000),
-  frontend: process.env.FRONTEND_URL || "http://localhost:3100",
-  production: process.env.NODE_ENV === "production",
+  frontend: frontendOrigins[0],
+  frontendOrigins,
+  production,
   redis: process.env.REDIS_URL || "redis://localhost:6379",
   bloggerMode: process.env.BLOGGER_MODE === "live" ? "live" : "mock",
 };

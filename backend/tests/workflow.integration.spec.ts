@@ -86,6 +86,48 @@ test("rejects cross-origin and missing-CSRF mutations", async () => {
     .send({ title: "Rejected test", niche: "Docker" })
     .expect(403);
 });
+test("loopback browser aliases can sign in and mutate only with a valid CSRF token", async () => {
+  const alias = "http://127.0.0.1:3100";
+  const local = request.agent(app.getHttpServer());
+  const login = await local
+    .post("/api/auth/login")
+    .set("Origin", alias)
+    .send({
+      email: "test@example.com",
+      password: "integration-test-password-123",
+    })
+    .expect(201);
+  expect(login.headers["access-control-allow-origin"]).toBe(alias);
+  await local
+    .post("/api/articles")
+    .set("Origin", alias)
+    .send({ title: "CSRF must still be required", niche: "Docker" })
+    .expect(403);
+  const settings = await db.automationSettings.findUniqueOrThrow({
+    where: { id: "owner" },
+  });
+  await local
+    .patch("/api/settings")
+    .set("Origin", alias)
+    .set("X-CSRF-Token", login.body.csrfToken)
+    .send({
+      paused: settings.paused,
+      emergencyStop: settings.emergencyStop,
+      dailyLimit: settings.dailyLimit,
+      times: settings.times,
+    })
+    .expect(200);
+  for (const disallowed of [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost.evil.example:3100",
+    "null",
+  ]) {
+    await local.post("/api/auth/logout").set("Origin", disallowed).expect(403);
+  }
+  await local.post("/api/auth/logout").expect(403);
+  await local.post("/api/auth/logout").set("Origin", alias).expect(201);
+});
 test("rejects invalid DTOs and unknown fields", async () => {
   await mutate("post", "/articles", {
     title: "x",
@@ -453,20 +495,18 @@ async function withFakeAi(
     AI_MAX_OUTPUT_TOKENS: "1000",
   });
   await db.aiUsage.deleteMany();
-  const generate = jest
-    .fn()
-    .mockResolvedValue({
-      data: {
-        topics: [
-          {
-            title: "A specific isolated topic proposal",
-            intent: "Test a budget reservation",
-          },
-        ],
-      },
-      inputTokens: 100,
-      outputTokens: 10,
-    });
+  const generate = jest.fn().mockResolvedValue({
+    data: {
+      topics: [
+        {
+          title: "A specific isolated topic proposal",
+          intent: "Test a budget reservation",
+        },
+      ],
+    },
+    inputTokens: 100,
+    outputTokens: 10,
+  });
   const service = new AiService(db, app.get(ArticlesService), {
     generate,
   } as AiProvider);

@@ -29,7 +29,7 @@ export type AuthRequest = Request & {
 export function assertOrigin(req: Request) {
   if (
     !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-    req.headers.origin !== env.frontend
+    (!req.headers.origin || !env.frontendOrigins.includes(req.headers.origin))
   )
     throw new ForbiddenException("Request origin is not allowed.");
 }

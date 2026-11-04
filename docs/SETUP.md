@@ -26,7 +26,7 @@ Open http://localhost:3100. Read OWNER_PASSWORD from `.env` privately. Setup gen
 | Redis      | localhost:56379                   | redis_data volume, append-only |
 | Worker     | dedicated process, no public port | PostgreSQL jobs + BullMQ       |
 
-Use localhost consistently; CSRF validates FRONTEND_URL exactly. Do not mix 127.0.0.1 and localhost in browser access. The Next rewrite sends API calls to 127.0.0.1:4000. Update FRONTEND_URL, GOOGLE_REDIRECT_URI, launch ports and Compose together if ports change.
+In development, the configured loopback frontend accepts localhost, 127.0.0.1 and IPv6 loopback on the same scheme and port. This supports local browser links without disabling Origin or CSRF validation. Production accepts only the configured FRONTEND_URL origin. Continue using localhost for Google OAuth so its redirect URI and session cookie share the same host. The Next rewrite sends API calls to 127.0.0.1:4000. Update FRONTEND_URL, GOOGLE_REDIRECT_URI, launch ports and Compose together if ports change.
 
 ## Environment reference
 

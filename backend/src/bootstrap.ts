@@ -17,7 +17,7 @@ export async function createApp() {
   app.setGlobalPrefix("api");
   app.use(helmet());
   app.use(cookieParser());
-  app.enableCors({ origin: env.frontend, credentials: true });
+  app.enableCors({ origin: env.frontendOrigins, credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

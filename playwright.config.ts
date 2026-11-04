@@ -15,5 +15,13 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"], channel: "msedge" },
     },
+    {
+      name: "chromium-loopback",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "msedge",
+        baseURL: "http://127.0.0.1:3100",
+      },
+    },
   ],
 });
