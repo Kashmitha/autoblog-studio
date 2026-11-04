@@ -54,16 +54,28 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
     await page
       .getByLabel("Article HTML")
       .fill("<h2>Draft test</h2><p>This is deliberately incomplete.</p>");
-    await page.getByLabel("Prepared with AI assistance").check();
-    await expect(page.getByLabel("AI-assistance disclosure")).toBeChecked();
+    await page
+      .getByLabel("AI assistance (workspace record)", { exact: true })
+      .check();
+    await expect(
+      page.getByLabel("Show AI-assistance footer (public)", { exact: true }),
+    ).not.toBeChecked();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(
       page.getByText("Draft saved. Approval reset for review."),
     ).toBeVisible();
-    await expect(page.getByLabel("Prepared with AI assistance")).toBeChecked();
-    await expect(page.getByLabel("Prepared with AI assistance")).toBeDisabled();
-    await expect(page.getByLabel("AI-assistance disclosure")).toBeChecked();
-    await expect(page.getByLabel("AI-assistance disclosure")).toBeDisabled();
+    await expect(
+      page.getByLabel("AI assistance (workspace record)", { exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByLabel("AI assistance (workspace record)", { exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByLabel("Show AI-assistance footer (public)", { exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByLabel("Show AI-assistance footer (public)", { exact: true }),
+    ).toBeEnabled();
     await page.getByRole("button", { name: "Run quality checks" }).click();
     await expect(page.getByText("THIN CONTENT", { exact: true })).toBeVisible();
     await expect(page.getByText("NO SOURCES", { exact: true })).toBeVisible();
@@ -73,6 +85,31 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
         .frameLocator('iframe[title="Article preview"]')
         .getByRole("heading", { name: "Draft test" }),
     ).toBeVisible();
+    await expect(
+      page
+        .frameLocator('iframe[title="Article preview"]')
+        .getByText("Prepared with AI assistance.", { exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByLabel("Show AI-assistance footer (public)", { exact: true })
+      .check();
+    await expect(
+      page
+        .frameLocator('iframe[title="Article preview"]')
+        .getByText("Prepared with AI assistance.", { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Show AI-assistance footer (public)", { exact: true })
+      .uncheck();
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await expect(
+      page.getByRole("button", { name: "Save draft" }),
+    ).toBeDisabled();
+    await expect(
+      page
+        .frameLocator('iframe[title="Article preview"]')
+        .getByText("Prepared with AI assistance.", { exact: true }),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Switch to dark theme" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.getByRole("button", { name: "Switch to light theme" }).click();

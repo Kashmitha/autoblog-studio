@@ -147,7 +147,6 @@ export class AiService {
             excerpt: data.excerpt.slice(0, 500),
             labels: (data.labels as string[]).slice(0, 12),
             aiAssisted: true,
-            disclosure: true,
             status: "NEEDS_REVIEW",
             approvedAt: null,
             version: { increment: 1 },

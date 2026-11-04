@@ -44,7 +44,7 @@ model Article {
   status ArticleStatus @default(PLANNED)
   version Int @default(1)
   aiAssisted Boolean @default(false)
-  disclosure Boolean @default(true)
+  disclosure Boolean @default(false)
   generation Json @default("{}")
   approvedAt DateTime?
   scheduledAt DateTime?

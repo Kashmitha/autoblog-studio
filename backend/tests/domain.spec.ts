@@ -85,13 +85,14 @@ describe("concrete quality evidence", () => {
     const a = article();
     expect(checkQuality(a, [{ ...a, id: "two" }]).passed).toBe(false);
   });
-  test("blocks undisclosed AI assistance", () => {
+  test("allows an optional public footer while retaining AI provenance and editorial review", () => {
     const a = article();
     a.aiAssisted = true;
     a.disclosure = false;
-    expect(
-      checkQuality(a, []).issues.some((i) => i.code === "DISCLOSURE"),
-    ).toBe(true);
+    const report = checkQuality(a, []);
+    expect(report.passed).toBe(true);
+    expect(a.aiAssisted).toBe(true);
+    expect(report.issues.some((i) => i.code === "EDITORIAL_REVIEW")).toBe(true);
   });
   test("requires real image rights and attribution", () => {
     const a = {

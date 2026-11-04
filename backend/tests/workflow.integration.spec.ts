@@ -87,7 +87,7 @@ test("rejects cross-origin and missing-CSRF mutations", async () => {
     .expect(403);
 });
 
-test("imported AI-assisted drafts retain provenance and disclosure across edits", async () => {
+test("imported AI-assisted drafts retain provenance while the public footer is optional", async () => {
   const created = await mutate("post", "/articles", {
     title: "An imported assisted tutorial for editorial review",
     niche: "Git & GitHub",
@@ -97,7 +97,7 @@ test("imported AI-assisted drafts retain provenance and disclosure across edits"
   }).expect(201);
   expect(created.body).toMatchObject({
     aiAssisted: true,
-    disclosure: true,
+    disclosure: false,
     status: "NEEDS_REVIEW",
     approvedAt: null,
   });
@@ -106,7 +106,7 @@ test("imported AI-assisted drafts retain provenance and disclosure across edits"
     niche: created.body.niche,
     version: created.body.version,
     aiAssisted: false,
-    disclosure: false,
+    disclosure: true,
   }).expect(200);
   expect(edited.body).toMatchObject({
     aiAssisted: true,
@@ -114,6 +114,18 @@ test("imported AI-assisted drafts retain provenance and disclosure across edits"
     status: "NEEDS_REVIEW",
     approvedAt: null,
     version: created.body.version + 1,
+  });
+  const withoutFooter = await mutate("patch", "/articles/" + created.body.id, {
+    title: created.body.title,
+    niche: created.body.niche,
+    version: edited.body.version,
+    disclosure: false,
+  }).expect(200);
+  expect(withoutFooter.body).toMatchObject({
+    aiAssisted: true,
+    disclosure: false,
+    status: "NEEDS_REVIEW",
+    approvedAt: null,
   });
 });
 test("loopback browser aliases can sign in and mutate only with a valid CSRF token", async () => {
@@ -407,6 +419,101 @@ test("live publish retry reuses stored remote ID and confirms LIVE without anoth
     jest.restoreAllMocks();
   }
 });
+
+test.each([false, true])(
+  "Blogger payload respects the public footer preference (%s) and sends labels",
+  async (disclosure) => {
+    const content = `<h2>Specific payload verification</h2><p>${Array.from({ length: 220 }, (_, i) => `payload${disclosure}${i}`).join(" ")} <a href="${source}">Primary reference</a></p>`;
+    const labels = ["Git", "Troubleshooting"];
+    const article = await db.article.create({
+      data: {
+        title: `Specific publication payload ${disclosure ? "enabled" : "disabled"}`,
+        slug: `footer-payload-${disclosure}`,
+        niche: "Git & GitHub",
+        html: content,
+        excerpt: "Isolated publication payload verification",
+        aiAssisted: true,
+        disclosure,
+        labels,
+        status: "SCHEDULED",
+        approvedAt: new Date(),
+      },
+    });
+    await db.source.create({
+      data: {
+        articleId: article.id,
+        url: source,
+        title: "Primary reference",
+        note: "Isolated source-support fixture",
+        checkedAt: new Date(),
+        httpStatus: 200,
+      },
+    });
+    const job = await db.publishJob.create({
+      data: {
+        articleId: article.id,
+        key: `footer-payload-${disclosure}`,
+        blogId: "123",
+        mode: "live",
+        liveTest: true,
+        scheduledAt: new Date(Date.now() - 1000),
+      },
+    });
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: { paused: false, dailyLimit: 10 },
+    });
+    const adapter = app.get(LiveBloggerAdapter);
+    const insert = jest
+      .spyOn(adapter, "createDraft")
+      .mockResolvedValue(`footer-post-${disclosure}`);
+    const update = jest
+      .spyOn(adapter, "updateDraft")
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(adapter, "getPost")
+      .mockResolvedValue({
+        id: `footer-post-${disclosure}`,
+        url: "",
+        status: "DRAFT",
+      });
+    jest
+      .spyOn(adapter, "publish")
+      .mockResolvedValue({
+        id: `footer-post-${disclosure}`,
+        url: "https://example.com/isolated-footer",
+        status: "LIVE",
+      });
+    const original = env.bloggerMode;
+    env.bloggerMode = "live";
+    try {
+      await publisher.process(job.id);
+      const expected =
+        content +
+        (disclosure ? "<p><em>Prepared with AI assistance.</em></p>" : "");
+      expect(insert).toHaveBeenCalledWith(
+        "123",
+        article.title,
+        expected,
+        labels,
+      );
+      expect(update).toHaveBeenCalledWith(
+        "123",
+        `footer-post-${disclosure}`,
+        article.title,
+        expected,
+        labels,
+      );
+      expect(
+        (await db.article.findUniqueOrThrow({ where: { id: article.id } }))
+          .aiAssisted,
+      ).toBe(true);
+    } finally {
+      env.bloggerMode = original;
+      jest.restoreAllMocks();
+    }
+  },
+);
 
 test("original PNG upload is private, tracked and blocked from public approval until hosted", async () => {
   const png = Buffer.from(

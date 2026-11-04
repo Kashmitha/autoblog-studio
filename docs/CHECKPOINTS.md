@@ -28,7 +28,7 @@ Only after the connection is verified:
 3. Set BLOGGER_MODE=live in `.env` and restart **both** API and worker. Confirm the interface says live integration.
 4. In that approved article, choose **Publish / schedule**, explicitly select the first-live-test checkbox, and queue the test.
 5. Resume Automation (clear emergency stop if needed). Review the Job history result and open the returned public Blogger URL.
-6. Verify there is exactly one post; inspect text, citations, responsive images, attribution, disclosure, labels and canonical/indexability behavior. Confirm the remote publication status in Blogger itself.
+6. Verify there is exactly one post; inspect text, citations, responsive images, attribution, optional footer preference, labels and canonical/indexability behavior. Confirm the remote publication status in Blogger itself.
 
 After the first successful authorized test, subsequently approved articles may publish according to your settings. This test creates a real public post. It is not performed automatically during the build. Blogger approval, policy compliance and ad-network approval remain external responsibilities.
 
@@ -42,7 +42,7 @@ Why: a provider key and API billing/credits belong to the owner, and require an 
 2. If you approve paid API use, create a dedicated restricted project/key, set provider-side usage/budget controls and purchase only the credits you choose. Payment may be required; do not enable this merely to finish setup.
 3. In local `.env`, set AI_API_KEY, AI_MODEL and current AI_INPUT_USD_PER_MILLION / AI_OUTPUT_USD_PER_MILLION. Keep AI_MONTHLY_LIMIT_USD within the $0–$10 overall budget; default is $3. Set AI_DAILY_GENERATION_LIMIT=2 initially.
 4. Only after authorizing the expense, set AI_BILLING_AUTHORIZED=true and AI_ENABLED=true. Restart API and worker.
-5. Add primary sources plus support notes to one editable article, then generate a single draft. Verify it remains NEEDS_REVIEW, usage/cost is recorded, disclosure is on and no publication occurs.
+5. Add primary sources plus support notes to one editable article, then generate a single draft. Verify it remains NEEDS_REVIEW, usage/cost and internal AI provenance are recorded, the optional public footer matches your preference and no publication occurs.
 
 Success: a source-based draft and real usage record, with editorial approval still required. Never post the key in chat. A ChatGPT subscription is not assumed to include API credits.
 

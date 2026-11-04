@@ -377,7 +377,7 @@ export class PublishingService implements OnModuleDestroy {
       )
       .join("");
     const content = safeHtml(
-      `${a.html}${figures}${a.aiAssisted && a.disclosure ? "<p><em>Prepared with AI assistance and reviewed by the editor.</em></p>" : ""}`,
+      `${a.html}${figures}${a.aiAssisted && a.disclosure ? "<p><em>Prepared with AI assistance.</em></p>" : ""}`,
     );
     if (!postId) {
       if (a.draftAttemptedAt)

@@ -41,7 +41,7 @@ export class ArticlesService {
       const a = await tx.article.create({
         data: {
           ...data,
-          disclosure: dto.aiAssisted ? true : dto.disclosure,
+          disclosure: dto.disclosure ?? false,
           html: safeHtml(dto.html || ""),
           slug:
             dto.title
@@ -76,7 +76,7 @@ export class ArticlesService {
         data: {
           ...data,
           aiAssisted: a.aiAssisted || dto.aiAssisted === true,
-          disclosure: a.aiAssisted || dto.aiAssisted ? true : dto.disclosure,
+          disclosure: dto.disclosure ?? a.disclosure,
           html: safeHtml(dto.html ?? a.html),
           version: { increment: 1 },
           status: "NEEDS_REVIEW",

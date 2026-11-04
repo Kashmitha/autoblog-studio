@@ -931,7 +931,7 @@ export function Generator({ notify, integrations }: ViewProps) {
               "Descriptive excerpt and relevant labels",
               "Relevant internal links from existing posts",
               "Image search terms and uncertainty notes",
-              "AI disclosure and a required human review",
+              "Workspace AI record and a required human review",
             ].map((v) => (
               <div key={v}>
                 <Check size={17} />

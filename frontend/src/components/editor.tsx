@@ -183,7 +183,10 @@ export default function Editor({
                       ))}
                     </select>
                   </Field>
-                  <Field label="Labels (comma-separated)">
+                  <Field
+                    label="Labels (comma-separated)"
+                    hint="Sent to Blogger as post labels when published."
+                  >
                     <input
                       disabled={locked}
                       value={doc.labels.join(", ")}
@@ -208,7 +211,7 @@ export default function Editor({
                 </Field>
                 <Field
                   label="Descriptive excerpt"
-                  hint={`${doc.excerpt.length}/500 characters`}
+                  hint={`${doc.excerpt.length}/500 characters · Studio summary; not synced to Blogger's search description.`}
                 >
                   <textarea
                     disabled={locked}
@@ -219,8 +222,8 @@ export default function Editor({
                   />
                 </Field>
                 <Field
-                  label="Canonical URL (optional)"
-                  hint="Blogger controls the public canonical tag. Confirm it on the published page."
+                  label="Canonical URL reference (optional)"
+                  hint="Workspace reference only. This does not set the Blogger permalink or canonical tag."
                 >
                   <input
                     disabled={locked}
@@ -230,6 +233,13 @@ export default function Editor({
                     onChange={(e) => update({ canonicalUrl: e.target.value })}
                   />
                 </Field>
+                <Notice>
+                  Blogger creates the public permalink. Studio does not
+                  currently set custom permalinks, search descriptions or
+                  per-post robots settings. Configure custom values in Blogger
+                  before publishing there; the Studio publisher creates and
+                  publishes in one job.
+                </Notice>
               </section>
               <section className="panel spaced">
                 <div className="panel-heading">
@@ -256,7 +266,7 @@ export default function Editor({
                     title="Article preview"
                     sandbox=""
                     className="article-preview"
-                    srcDoc={`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; style-src 'unsafe-inline';"><style>body{font:16px/1.8 system-ui;color:#26342e;max-width:720px;margin:32px auto;padding:0 24px}img{max-width:100%;height:auto}pre{background:#f1f4f2;padding:18px;overflow:auto}a{color:#267553}h2{line-height:1.3;margin-top:32px}figcaption{font-size:12px;color:#67766f}</style></head><body><h1>${doc.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</h1>${doc.html}${doc.media?.map(({ media: m }) => `<figure><img src="${m.url.replaceAll('"', "&quot;")}" alt="${m.alt.replaceAll('"', "&quot;")}"/><figcaption>${m.attribution.replaceAll("<", "&lt;")}</figcaption></figure>`).join("") || ""}${doc.aiAssisted && doc.disclosure ? "<p><em>Prepared with AI assistance and reviewed by the editor.</em></p>" : ""}</body></html>`}
+                    srcDoc={`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; style-src 'unsafe-inline';"><style>body{font:16px/1.8 system-ui;color:#26342e;max-width:720px;margin:32px auto;padding:0 24px}img{max-width:100%;height:auto}pre{background:#f1f4f2;padding:18px;overflow:auto}a{color:#267553}h2{line-height:1.3;margin-top:32px}figcaption{font-size:12px;color:#67766f}</style></head><body><h1>${doc.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</h1>${doc.html}${doc.media?.map(({ media: m }) => `<figure><img src="${m.url.replaceAll('"', "&quot;")}" alt="${m.alt.replaceAll('"', "&quot;")}"/><figcaption>${m.attribution.replaceAll("<", "&lt;")}</figcaption></figure>`).join("") || ""}${doc.aiAssisted && doc.disclosure ? "<p><em>Prepared with AI assistance.</em></p>" : ""}</body></html>`}
                   />
                 ) : (
                   <textarea
@@ -289,21 +299,19 @@ export default function Editor({
                       onChange={(e) =>
                         update({
                           aiAssisted: e.target.checked,
-                          disclosure: e.target.checked || doc.disclosure,
                         })
                       }
                     />
-                    Prepared with AI assistance
+                    AI assistance (workspace record)
                   </label>
                   <label className="checkbox-label">
                     <input
                       type="checkbox"
-                      disabled={locked || doc.aiAssisted}
+                      disabled={locked}
                       checked={doc.disclosure}
                       onChange={(e) => update({ disclosure: e.target.checked })}
                     />
-                    AI-assistance disclosure{" "}
-                    {doc.aiAssisted ? "(required)" : ""}
+                    Show AI-assistance footer (public)
                   </label>
                 </div>
               </section>

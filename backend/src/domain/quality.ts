@@ -142,13 +142,6 @@ export function checkQuality(
       "Write a descriptive excerpt.",
       "Excerpt is empty.",
     );
-  if (article.aiAssisted && !article.disclosure)
-    issue(
-      "DISCLOSURE",
-      "error",
-      "AI-assisted articles require disclosure.",
-      "Disclosure disabled.",
-    );
   if (!article.sources.length)
     issue(
       "NO_SOURCES",
