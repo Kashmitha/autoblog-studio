@@ -1,5 +1,7 @@
 # Search Console verification — 5 November 2026
 
+Subsequent live activation: owner consent and verified-property selection are complete. A real call through Studio's inspection endpoint returned NOT_INDEXED with Redirect error, last crawl 5 November at 16:01:39 Asia/Colombo, checked at 18:13:33. This verifies the live read path and negative result, not completed indexing. The newer failed crawl requires investigation; a fresh live test should use the owner's Search Console browser because the assistant's separate browser account cannot access the property. Exact response and identifying fields remain in ignored `.local/first-real-indexing-result.json`. Setup-pending notes below describe the earlier implementation verification snapshot.
+
 Executed local checks for the indexing/reporting implementation:
 
 - 81 unit tests across five suites passed. New tests cover verdict mapping, property/domain boundaries, safe Google report links, sanitized provider failures, exact official inspection/list calls, separate read scopes, same-owner reconnection, optimistic token refresh and selected-property traffic imports. Missing traffic metrics remain absent while explicit zeros are preserved.
