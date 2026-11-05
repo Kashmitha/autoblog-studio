@@ -15,7 +15,7 @@ For a short Git tutorial, tested commands and their expected output can be suffi
 | Title and article body | Sent to Blogger by the publisher. |
 | Labels | Enter comma-separated labels in the editor; these are sent as Blogger post labels. |
 | Images | Reviewed attached media is appended with alt text, credits and source/license links. Private uploads need public delivery first. |
-| Publishing time | Studio queues approved articles and its worker publishes when due; paused automation defers the job. |
+| Publishing time | On Blogger sends approved content and a future date to Google now; once confirmed, publication does not require this computer. On this computer uses the local worker and requires the computer/Docker to run; pause defers local jobs. See BLOGGER_SCHEDULING.md. |
 | Permalink | Blogger generates the public URL. Studio records the returned URL. Its internal slug and canonical reference do not set it. |
 | Custom permalink | Not implemented through Studio. Blogger's editor supports this setting before publication. Studio currently creates and publishes in one worker job, with no intermediate remote-draft editing screen. |
 | Search description | Not synced. Studio's excerpt is a workspace summary, not Blogger's per-post search description. |
