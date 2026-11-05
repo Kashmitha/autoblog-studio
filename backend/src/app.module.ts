@@ -10,6 +10,7 @@ import { PublishingModule } from "./modules/publishing.module";
 import { StudioController } from "./api/studio.controller";
 import { HealthController } from "./api/health.controller";
 import { MediaController } from "./api/media.controller";
+import { CloudPublishingController } from "./api/cloud-publishing.controller";
 @Module({
   imports: [
     DatabaseModule,
@@ -20,7 +21,12 @@ import { MediaController } from "./api/media.controller";
     PublishingModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 180 }]),
   ],
-  controllers: [StudioController, HealthController, MediaController],
+  controllers: [
+    StudioController,
+    HealthController,
+    MediaController,
+    CloudPublishingController,
+  ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -20,6 +20,13 @@ export function useResource<T>(path: string) {
     setLoading(true);
     void reload();
   }, [reload]);
+  useEffect(() => {
+    const synced = () => {
+      void reload();
+    };
+    window.addEventListener("blogger-status-synced", synced);
+    return () => window.removeEventListener("blogger-status-synced", synced);
+  }, [reload]);
   return { data, setData, error, loading, reload };
 }
 export function useAction(notify: Notify) {

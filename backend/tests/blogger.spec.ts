@@ -4,6 +4,71 @@ import {
   LiveBloggerAdapter,
 } from "../src/infrastructure/blogger.service";
 jest.mock("googleapis/build/src/apis/blogger", () => ({ blogger: jest.fn() }));
+
+test("hands the future date to Blogger without replaying the write, then confirms ADMIN status", async () => {
+  const at = "2030-11-06T03:30:00.000Z";
+  const publish = jest
+    .fn()
+    .mockResolvedValue({ data: { id: "future", status: "SCHEDULED" } });
+  const get = jest
+    .fn()
+    .mockResolvedValue({
+      data: {
+        id: "future",
+        title: "Future post",
+        status: "SCHEDULED",
+        published: at,
+        url: "https://example.com/future",
+      },
+    });
+  (blogger as jest.Mock).mockReturnValue({ posts: { publish, get } });
+  const adapter = new LiveBloggerAdapter({
+    client: async () => ({}),
+  } as unknown as GoogleService);
+  expect(await adapter.schedulePost("blog", "future", at)).toMatchObject({
+    status: "SCHEDULED",
+    published: at,
+  });
+  expect(publish).toHaveBeenCalledWith(
+    { blogId: "blog", postId: "future", publishDate: at },
+    { timeout: 20000, retry: false },
+  );
+  expect(get).toHaveBeenCalledWith(
+    { blogId: "blog", postId: "future", view: "ADMIN" },
+    { timeout: 20000 },
+  );
+});
+
+test("reads later Blogger pages so duplicate detection is not limited to the first fifty posts", async () => {
+  const list = jest
+    .fn()
+    .mockResolvedValueOnce({
+      data: { items: [{ id: "first" }], nextPageToken: "next" },
+    })
+    .mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: "second",
+            title: "Existing scheduled post",
+            status: "SCHEDULED",
+          },
+        ],
+      },
+    });
+  (blogger as jest.Mock).mockReturnValue({ posts: { list } });
+  const service = new GoogleService({
+    integration: { findUnique: async () => ({ blogId: "blog" }) },
+  } as never);
+  jest.spyOn(service, "client").mockResolvedValue({} as never);
+  expect((await service.posts()).map((p) => p.id)).toEqual(["first", "second"]);
+  expect(list.mock.calls[1][0]).toMatchObject({
+    pageToken: "next",
+    fetchBodies: false,
+    view: "ADMIN",
+  });
+  jest.restoreAllMocks();
+});
 test("requests admin visibility to reliably distinguish an existing LIVE post from a draft", async () => {
   const get = jest.fn().mockResolvedValue({
     data: { id: "known", url: "https://example.com/known", status: "LIVE" },

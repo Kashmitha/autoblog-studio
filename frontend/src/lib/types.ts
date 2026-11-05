@@ -64,6 +64,11 @@ export interface Article {
   publishedUrl?: string;
   scheduledAt?: string;
   remotePostId?: string;
+  publishingTarget?: "local" | "blogger";
+  remoteBlogId?: string;
+  remoteStatus?: string;
+  remoteSyncedAt?: string;
+  remoteSyncError?: string;
   draftAttemptedAt?: string;
   updateReminderAt?: string;
   updatedAt: string;
@@ -87,6 +92,7 @@ export interface Job {
   id: string;
   articleId: string;
   mode: string;
+  target?: string;
   state: string;
   attempts: number;
   scheduledAt: string;

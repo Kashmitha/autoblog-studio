@@ -51,7 +51,8 @@ export class AiService {
       );
     if (
       a &&
-      ["SCHEDULED", "PUBLISHING", "PUBLISHED", "APPROVED"].includes(a.status)
+      (a.publishingTarget === "blogger" ||
+        ["SCHEDULED", "PUBLISHING", "PUBLISHED", "APPROVED"].includes(a.status))
     )
       throw new BadRequestException(
         "Only editable draft articles can be generated.",
@@ -141,7 +142,12 @@ export class AiService {
         )
           throw new Error("AI returned invalid draft fields.");
         const changed = await this.db.article.updateMany({
-          where: { id: a.id, version: a.version, status: a.status },
+          where: {
+            id: a.id,
+            version: a.version,
+            status: a.status,
+            publishingTarget: "local",
+          },
           data: {
             html: safeHtml(data.html),
             excerpt: data.excerpt.slice(0, 500),

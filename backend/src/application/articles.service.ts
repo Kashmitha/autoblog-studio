@@ -61,7 +61,10 @@ export class ArticlesService {
   }
   async update(id: string, dto: ArticleDto) {
     const a = await this.get(id);
-    if (["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.status))
+    if (
+      a.publishingTarget === "blogger" ||
+      ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.status)
+    )
       throw new ConflictException(
         "Unschedule before editing. Published articles are immutable in V1; create a revision.",
       );
@@ -72,7 +75,12 @@ export class ArticlesService {
     const { version, ...data } = dto;
     return this.db.$transaction(async (tx) => {
       const updated = await tx.article.updateMany({
-        where: { id, version: a.version, status: a.status },
+        where: {
+          id,
+          version: a.version,
+          status: a.status,
+          publishingTarget: "local",
+        },
         data: {
           ...data,
           aiAssisted: a.aiAssisted || dto.aiAssisted === true,
@@ -125,7 +133,10 @@ export class ArticlesService {
   ): Promise<T> {
     return this.db.$transaction(async (tx) => {
       const a = await tx.article.findUniqueOrThrow({ where: { id } });
-      if (["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.status))
+      if (
+        a.publishingTarget === "blogger" ||
+        ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.status)
+      )
         throw new ConflictException(
           "Unschedule before changing article materials.",
         );
@@ -134,7 +145,12 @@ export class ArticlesService {
           "Article changed while source verification was running. Retry on the current version.",
         );
       const changed = await tx.article.updateMany({
-        where: { id, version: a.version, status: a.status },
+        where: {
+          id,
+          version: a.version,
+          status: a.status,
+          publishingTarget: "local",
+        },
         data: {
           version: { increment: 1 },
           approvedAt: null,
@@ -196,6 +212,10 @@ export class ArticlesService {
   }
   async transition(id: string, to: ArticleStatus, reason: string) {
     const a = await this.get(id);
+    if (a.publishingTarget === "blogger")
+      throw new ConflictException(
+        "Sync this Blogger-managed post instead of changing its local workflow state.",
+      );
     try {
       assertTransition(a.status, to);
     } catch (e) {
@@ -210,7 +230,12 @@ export class ArticlesService {
     }
     return this.db.$transaction(async (tx) => {
       const changed = await tx.article.updateMany({
-        where: { id, version: a.version, status: a.status },
+        where: {
+          id,
+          version: a.version,
+          status: a.status,
+          publishingTarget: "local",
+        },
         data: { status: to, approvedAt: to === "APPROVED" ? new Date() : null },
       });
       if (!changed.count)

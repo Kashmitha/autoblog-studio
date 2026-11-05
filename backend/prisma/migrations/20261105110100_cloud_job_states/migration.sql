@@ -1,0 +1,5 @@
+ALTER TABLE "PublishJob" DROP CONSTRAINT "publish_state";
+ALTER TABLE "PublishJob" ADD CONSTRAINT "publish_state" CHECK (
+  ("target" = 'local' AND "state" IN ('PENDING','RUNNING','SUCCEEDED','MOCK_SUCCEEDED','FAILED','CANCELED'))
+  OR ("target" = 'blogger' AND "state" IN ('CLOUD_PREPARING','CLOUD_UNCERTAIN','REMOTE_SCHEDULED','SUCCEEDED','FAILED','CANCELED'))
+);

@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 4 November 2026, Asia/Colombo.
+Last updated: 5 November 2026, Asia/Colombo.
 
 ## Completed
 
@@ -24,6 +24,8 @@ Last updated: 4 November 2026, Asia/Colombo.
 
 ## Current
 
+- Verification for the 5 November scheduling update: 49 unit tests, 38 isolated integration tests and six Edge checks passed; type checks and production Docker builds passed. Actual owner schedules were linked/read without remote mutation, and desktop/mobile calendar/editor checks passed. See CLOUD_SCHEDULING_TESTING.md. Creating a new cloud schedule through Studio's Google write path and eventual LIVE confirmation still need live verification; no extra live test post was created.
+- Blogger-hosted scheduling and status sync are implemented. Both owner-created posts are linked to their Studio articles and show SCHEDULED/Managed by Blogger: "Why git diff is empty after git add" for 6 November 09:00 Asia/Colombo and "Why .gitignore does not ignore a tracked file" for 7 November 09:00 Asia/Colombo. Their remote dates/labels/metadata and remote post count are unchanged. Google handles publication without this machine running. Local automation remains paused with zero pending local jobs; recurring times are empty and paid AI is disabled. Do not republish these articles.
 - Final Docker image refresh and browser verification completed. Commons searches returned 9 laptop, 7 computer and 8 data-center candidates; all remain subject to owner rights review.
 - Owner Google OAuth connection, saved owned-blog selection and live read-only connection test are verified. Eight existing posts were read without requesting their bodies; none of their titles matched the proposed Git unstaging topic.
 - The first original AI-assisted tutorial, "How to unstage a file in Git without losing your changes", is PUBLISHED after the owner's saved editorial approval and explicit first-live-test authorization. Three official documentation links returned HTTP 200; automated quality passed (97, editorial-review warning). All four Git scenarios preserved working-file bytes in a separate local repository. No paid API AI request was made.
@@ -54,6 +56,8 @@ Last updated: 4 November 2026, Asia/Colombo.
 Sandbox network/Docker access, reserved PostgreSQL ports, Next generated-folder permissions, Jest ESM VM flag, unrelated app on port 3000, stale Next build assets, local-email DTO validation, dialog selector ambiguity, Node 26 pinned-DNS IPv4 handling, loaded Prisma Windows DLL, and Commons bitmap URLs carrying provider query strings. See TESTING.md for details.
 
 ## Next actions after DONE
+
+Current override, 5 November: both schedules are linked and protected from duplicate local publication. Use the new Schedule on Blogger option for future approved articles, or link a matching manually scheduled/published post. Studio syncs linked statuses when opened and through explicit sync buttons. Verify eventual remote LIVE status after their dates; scheduled does not yet mean published. The shared Search Console redirect-error report is still processing data; today's smartphone live test passed, but indexing is not confirmed.
 
 1. The initial approved article is already PUBLISHED; inspect the saved result rather than scheduling it again. BLOGGER_MODE is live and automation is paused after the single test.
 2. Keep paid AI disabled. New articles still require human editorial approval; publishing requires the owner to resume automation or authorize the next scheduled run.

@@ -948,25 +948,53 @@ export function Generator({ notify, integrations }: ViewProps) {
     </>
   );
 }
-export function Calendar({ notify }: ViewProps) {
+export function Calendar({ notify, integrations }: ViewProps) {
   const r = useResource<Article[]>("/articles"),
     a = useAction(notify);
   const [offset, setOffset] = useState(0),
     [selected, setSelected] = useState(""),
+    [scheduleWhere, setScheduleWhere] = useState("blogger"),
     [day, setDay] = useState(""),
     [time, setTime] = useState("09:00");
   const now = new Date();
+  const canCloud =
+    integrations?.bloggerMode === "live" &&
+    !!integrations.google?.liveTestSucceededAt;
+  const cloudSchedule = canCloud && scheduleWhere === "blogger";
   const month = new Date(now.getFullYear(), now.getMonth() + offset, 1),
     days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(),
     prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
-  const scheduled = r.data?.filter((a) => a.scheduledAt) || [];
+  const scheduled = (r.data?.filter((a) => a.scheduledAt) || []).sort(
+    (a, b) =>
+      new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime(),
+  );
   return (
     <>
       <PageHeading
         eyebrow="A STEADY RHYTHM"
         title="Give good content its moment."
         description="Schedule approved work. Times are always shown in Asia/Colombo."
-      />
+      >
+        <button
+          className="secondary"
+          disabled={a.busy}
+          onClick={() =>
+            a.run(async () => {
+              const result = await post<{ results: { error?: string }[] }>(
+                "/blogger/sync",
+              );
+              await r.reload();
+              if (result.results.some((r) => r.error))
+                throw new Error(
+                  "Some Blogger statuses could not be confirmed. Open those articles for details.",
+                );
+            }, "Blogger schedules refreshed.")
+          }
+        >
+          Sync Blogger status
+        </button>
+      </PageHeading>
+      <ResourceState {...r} />
       <div className="two-column calendar-layout">
         <section className="panel">
           <div className="panel-heading">
@@ -1045,7 +1073,10 @@ export function Calendar({ notify }: ViewProps) {
             >
               <option value="">Choose approved article</option>
               {r.data
-                ?.filter((a) => a.status === "APPROVED")
+                ?.filter(
+                  (a) =>
+                    a.status === "APPROVED" && a.publishingTarget !== "blogger",
+                )
                 .map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.title}
@@ -1053,6 +1084,21 @@ export function Calendar({ notify }: ViewProps) {
                 ))}
             </select>
           </Field>
+          {canCloud && (
+            <Field label="Where to schedule">
+              <select
+                value={scheduleWhere}
+                onChange={(e) => setScheduleWhere(e.target.value)}
+              >
+                <option value="blogger">
+                  On Blogger · computer can be off
+                </option>
+                <option value="local">
+                  On this computer · must stay running
+                </option>
+              </select>
+            </Field>
+          )}
           <Field label="Date">
             <input
               type="date"
@@ -1072,21 +1118,33 @@ export function Calendar({ notify }: ViewProps) {
             className="primary"
             disabled={a.busy || !selected || !day}
             onClick={() =>
-              a.run(async () => {
-                await post("/articles/" + selected + "/schedule", {
-                  at: new Date(`${day}T${time}:00+05:30`).toISOString(),
-                });
-                await r.reload();
-                setSelected("");
-              }, "Article scheduled durably.")
+              a.run(
+                async () => {
+                  await post(
+                    (cloudSchedule ? "/blogger" : "") +
+                      "/articles/" +
+                      selected +
+                      "/schedule",
+                    {
+                      at: new Date(`${day}T${time}:00+05:30`).toISOString(),
+                    },
+                  );
+                  await r.reload();
+                  setSelected("");
+                },
+                cloudSchedule
+                  ? "Blogger confirmed the schedule. Your computer can be off."
+                  : "Local publishing job saved.",
+              )
             }
           >
             <CalendarDays size={16} />
-            Schedule article
+            {cloudSchedule ? "Schedule on Blogger" : "Schedule article"}
           </button>
           <Notice>
-            Automation must be resumed for jobs to run. Mock jobs test the
-            workflow without creating real posts.
+            {cloudSchedule
+              ? "Choose a time at least five minutes ahead. Studio sends the article now; Google handles the accepted schedule even when your computer is off. Local pause does not cancel it."
+              : "This computer and Docker must stay running, and local automation must be resumed. Mock jobs create no real posts."}
           </Notice>
         </section>
       </div>
@@ -1108,20 +1166,37 @@ export function Calendar({ notify }: ViewProps) {
                   </Link>
                   <p className="subtle small">
                     {formatDate(item.scheduledAt!, true)} · Asia/Colombo
+                    {item.publishingTarget === "blogger"
+                      ? " · Scheduled on Blogger · computer can be off"
+                      : " · Scheduled on this computer"}
                   </p>
+                  {item.remoteSyncError && (
+                    <p className="warning-text small">{item.remoteSyncError}</p>
+                  )}
                 </div>
-                <button
-                  className="secondary compact"
-                  disabled={a.busy}
-                  onClick={() =>
-                    a.run(async () => {
-                      await post("/articles/" + item.id + "/unschedule");
-                      await r.reload();
-                    }, "Schedule canceled.")
-                  }
-                >
-                  Unschedule
-                </button>
+                {item.publishingTarget === "blogger" ? (
+                  <a
+                    className="secondary compact"
+                    href={`https://www.blogger.com/blog/post/edit/${item.remoteBlogId}/${item.remotePostId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Manage on Blogger
+                  </a>
+                ) : (
+                  <button
+                    className="secondary compact"
+                    disabled={a.busy}
+                    onClick={() =>
+                      a.run(async () => {
+                        await post("/articles/" + item.id + "/unschedule");
+                        await r.reload();
+                      }, "Schedule canceled.")
+                    }
+                  >
+                    Unschedule
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1163,6 +1238,11 @@ export function Automation({ notify }: ViewProps) {
       <ResourceState {...r} />
       {s && (
         <>
+          <Notice>
+            These controls manage publishing on this computer. They do not
+            cancel schedules already accepted by Google. Manage those posts on
+            Blogger, then sync their status in Studio.
+          </Notice>
           <div className="two-column">
             <section className="panel padded">
               <div className="panel-heading">

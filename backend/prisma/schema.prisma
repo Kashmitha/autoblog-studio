@@ -53,6 +53,10 @@ model Article {
   canonicalUrl String?
   remotePostId String? @unique
   remoteBlogId String?
+  publishingTarget String @default("local")
+  remoteStatus String?
+  remoteSyncedAt DateTime?
+  remoteSyncError String?
   draftAttemptedAt DateTime?
   updateReminderAt DateTime?
   createdAt DateTime @default(now())
@@ -128,6 +132,7 @@ model PublishJob {
   article Article @relation(fields: [articleId], references: [id], onDelete: Restrict)
   key String @unique
   mode String @default("mock")
+  target String @default("local")
   liveTest Boolean @default(false)
   blogId String?
   state String @default("PENDING")

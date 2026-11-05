@@ -36,6 +36,11 @@ export default function Editor({
     [schedule, setSchedule] = useState(false),
     [at, setAt] = useState(""),
     [firstTest, setFirstTest] = useState(false),
+    [scheduleWhere, setScheduleWhere] = useState("blogger"),
+    [linkOpen, setLinkOpen] = useState(false),
+    [matchingPosts, setMatchingPosts] = useState<
+      { id: string; title: string; status: string; published?: string }[]
+    >([]),
     [remoteId, setRemoteId] = useState(""),
     [reconcileConfirm, setReconcileConfirm] = useState(""),
     [reminder, setReminder] = useState(""),
@@ -44,9 +49,14 @@ export default function Editor({
     doc = article ? { ...article, ...draft } : null;
   const locked =
     !!article &&
-    ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(article.status);
+    (article.publishingTarget === "blogger" ||
+      ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(article.status));
   const dirty = Object.keys(draft).length > 0;
   const report = article?.reports?.[0];
+  const canCloud =
+    integrations?.bloggerMode === "live" &&
+    !!integrations.google?.liveTestSucceededAt;
+  const cloudSchedule = canCloud && scheduleWhere === "blogger";
   const update = (patch: Partial<Article>) => setDraft({ ...draft, ...patch });
   const refresh = async () => {
     setDraft({});
@@ -114,35 +124,128 @@ export default function Editor({
                 <ShieldCheck size={16} />
                 Review & approve
               </button>
-              {article.status === "APPROVED" && (
-                <button className="primary" onClick={() => setSchedule(true)}>
-                  <CalendarDays size={16} />
-                  Publish / schedule
-                </button>
+              {article.status === "APPROVED" &&
+                article.publishingTarget !== "blogger" && (
+                  <button className="primary" onClick={() => setSchedule(true)}>
+                    <CalendarDays size={16} />
+                    Publish / schedule
+                  </button>
+                )}
+              {article.status === "SCHEDULED" &&
+                article.publishingTarget !== "blogger" && (
+                  <button
+                    className="secondary"
+                    disabled={a.busy}
+                    onClick={() =>
+                      a.run(async () => {
+                        await post("/articles/" + id + "/unschedule");
+                        await refresh();
+                      }, "Schedule canceled.")
+                    }
+                  >
+                    Unschedule
+                  </button>
+                )}
+            </div>
+          </div>
+          {article.publishingTarget === "blogger" && (
+            <section className="panel padded spaced">
+              <h2>Managed by Blogger</h2>
+              <p>
+                {article.remoteStatus === "SCHEDULED"
+                  ? `Google has this post scheduled for ${formatDate(article.scheduledAt!, true)} · Asia/Colombo. Your computer can be off.`
+                  : article.remoteStatus === "LIVE"
+                    ? "Blogger confirmed this post is published."
+                    : "The remote schedule needs confirmation. Sync before taking further action."}
+              </p>
+              <p className="subtle small">
+                {article.remoteSyncedAt
+                  ? `Last confirmed ${formatDate(article.remoteSyncedAt, true)}. `
+                  : ""}
+                Pausing Studio or using its emergency stop cannot cancel a
+                schedule Google already accepted. Change or cancel it on
+                Blogger, then sync. Blogger's copy is authoritative; syncing
+                does not overwrite either article body.
+              </p>
+              {article.remoteSyncError && (
+                <Notice tone="warning">{article.remoteSyncError}</Notice>
               )}
-              {article.status === "SCHEDULED" && (
+              <div className="inline wrap">
                 <button
                   className="secondary"
                   disabled={a.busy}
                   onClick={() =>
                     a.run(async () => {
-                      await post("/articles/" + id + "/unschedule");
+                      const result = await post<{
+                        results: { error?: string }[];
+                      }>("/blogger/articles/" + id + "/sync");
                       await refresh();
-                    }, "Schedule canceled.")
+                      if (result.results.some((r) => r.error))
+                        throw new Error(
+                          "Could not confirm Blogger status. The last confirmed status is retained.",
+                        );
+                    }, "Blogger status refreshed.")
                   }
                 >
-                  Unschedule
+                  Sync Blogger status
                 </button>
-              )}
-            </div>
-          </div>
+                {article.remoteBlogId && article.remotePostId && (
+                  <a
+                    className="secondary"
+                    href={`https://www.blogger.com/blog/post/edit/${article.remoteBlogId}/${article.remotePostId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Manage on Blogger <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
+          {integrations?.bloggerMode === "live" &&
+            integrations.google?.liveTestSucceededAt &&
+            ((article.status === "APPROVED" &&
+              article.publishingTarget !== "blogger") ||
+              (article.publishingTarget === "blogger" &&
+                !article.remotePostId)) && (
+              <div className="spaced">
+                <button
+                  className="secondary"
+                  disabled={a.busy || dirty}
+                  onClick={() =>
+                    a.run(async () => {
+                      const posts = await api<
+                        {
+                          id: string;
+                          title: string;
+                          status: string;
+                          published?: string;
+                        }[]
+                      >("/integrations/google/posts");
+                      setMatchingPosts(
+                        posts.filter(
+                          (p) =>
+                            p.title.trim() === article.title.trim() &&
+                            ["SCHEDULED", "LIVE"].includes(p.status),
+                        ),
+                      );
+                      setRemoteId("");
+                      setReconcileConfirm("");
+                      setLinkOpen(true);
+                    })
+                  }
+                >
+                  Link a post already scheduled on Blogger
+                </button>
+              </div>
+            )}
           {dirty && (
             <Notice>
               Save your changes before quality checks or approval. Saving
               invalidates previous approval.
             </Notice>
           )}
-          {locked && (
+          {locked && article.publishingTarget !== "blogger" && (
             <Notice>
               {article.status === "PUBLISHED" ? (
                 <>
@@ -237,8 +340,8 @@ export default function Editor({
                   Blogger creates the public permalink. Studio does not
                   currently set custom permalinks, search descriptions or
                   per-post robots settings. Configure custom values in Blogger
-                  before publishing there; the Studio publisher creates and
-                  publishes in one job.
+                  in Blogger. Blogger-hosted schedules can be managed there
+                  after Studio sends the approved article.
                 </Notice>
               </section>
               <section className="panel spaced">
@@ -389,6 +492,7 @@ export default function Editor({
                 </button>
               </section>
               {article.status === "FAILED" &&
+                article.publishingTarget !== "blogger" &&
                 article.draftAttemptedAt &&
                 !article.remotePostId && (
                   <section className="panel padded spaced">
@@ -737,6 +841,75 @@ export default function Editor({
               </div>
             </Modal>
           )}
+          {linkOpen && (
+            <Modal
+              title="Link an existing Blogger post"
+              onClose={() => setLinkOpen(false)}
+            >
+              <Notice>
+                This only links the existing post. Its content and date stay on
+                Blogger. Review the title and time to avoid linking the wrong
+                post.
+              </Notice>
+              <Field label="Matching Blogger post">
+                <select
+                  value={remoteId}
+                  onChange={(e) => setRemoteId(e.target.value)}
+                >
+                  <option value="">Choose matching post</option>
+                  {matchingPosts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} · {p.status} ·{" "}
+                      {p.published
+                        ? formatDate(p.published, true)
+                        : "Date unavailable"}{" "}
+                      · {p.id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {!matchingPosts.length && (
+                <Notice>
+                  No scheduled or published post with this exact title was found
+                  on the selected blog.
+                </Notice>
+              )}
+              <Field label="Type LINK EXISTING BLOGGER POST">
+                <input
+                  value={reconcileConfirm}
+                  onChange={(e) => setReconcileConfirm(e.target.value)}
+                />
+              </Field>
+              <div className="form-actions">
+                <button
+                  className="secondary"
+                  onClick={() => setLinkOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary"
+                  disabled={
+                    a.busy ||
+                    !remoteId ||
+                    reconcileConfirm !== "LINK EXISTING BLOGGER POST"
+                  }
+                  onClick={() =>
+                    a.run(async () => {
+                      await post("/blogger/articles/" + id + "/link", {
+                        postId: remoteId,
+                        confirmation: reconcileConfirm,
+                      });
+                      setLinkOpen(false);
+                      await refresh();
+                    }, "Existing Blogger post linked. No new post was created.")
+                  }
+                >
+                  Link Blogger post
+                </button>
+              </div>
+            </Modal>
+          )}
           {schedule && (
             <Modal
               title="Publish or schedule approved article"
@@ -747,7 +920,28 @@ export default function Editor({
                   ? "This can create a real public Blogger post. The first live test requires separate explicit authorization in Blog connections."
                   : "Mock mode: this exercises the worker without creating a real Blogger post."}
               </Notice>
-              <Field label="Schedule time · Asia/Colombo (leave empty for now)">
+              {canCloud && (
+                <Field label="Where to schedule">
+                  <select
+                    value={scheduleWhere}
+                    onChange={(e) => setScheduleWhere(e.target.value)}
+                  >
+                    <option value="blogger">
+                      On Blogger · computer can be off
+                    </option>
+                    <option value="local">
+                      On this computer · must stay running
+                    </option>
+                  </select>
+                </Field>
+              )}
+              <Field
+                label={
+                  cloudSchedule
+                    ? "Schedule time · Asia/Colombo (at least five minutes ahead)"
+                    : "Schedule time · Asia/Colombo (leave empty for now)"
+                }
+              >
                 <input
                   type="datetime-local"
                   value={at}
@@ -765,10 +959,11 @@ export default function Editor({
                     Run the explicitly authorized first live test
                   </label>
                 )}
-              <p className="subtle small">
-                Automation must be resumed. All quality and daily-limit checks
-                run again in the worker.
-              </p>
+              <Notice>
+                {cloudSchedule
+                  ? "Studio sends the approved article and date to Google now. Once Blogger confirms the schedule, your computer can be off. Local pause does not cancel Google's accepted schedule; manage changes on Blogger."
+                  : "This computer and Docker must be running at publication time, and local automation must be resumed. Quality and daily-limit checks run again in the worker."}
+              </Notice>
               <div className="form-actions">
                 <button
                   className="secondary"
@@ -778,22 +973,40 @@ export default function Editor({
                 </button>
                 <button
                   className="primary"
-                  disabled={a.busy}
+                  disabled={a.busy || dirty || (cloudSchedule && !at)}
                   onClick={() =>
-                    a.run(async () => {
-                      await post("/articles/" + id + "/schedule", {
-                        at: at
-                          ? new Date(at + ":00+05:30").toISOString()
-                          : new Date().toISOString(),
-                        liveTest: firstTest,
-                      });
-                      setSchedule(false);
-                      await refresh();
-                    }, "Publishing job saved.")
+                    a.run(
+                      async () => {
+                        try {
+                          await post(
+                            (cloudSchedule ? "/blogger" : "") +
+                              "/articles/" +
+                              id +
+                              "/schedule",
+                            {
+                              at: at
+                                ? new Date(at + ":00+05:30").toISOString()
+                                : new Date().toISOString(),
+                              liveTest: firstTest,
+                            },
+                          );
+                        } finally {
+                          await refresh();
+                        }
+                        setSchedule(false);
+                      },
+                      cloudSchedule
+                        ? "Blogger confirmed the schedule. Your computer can be off."
+                        : "Local publishing job saved.",
+                    )
                   }
                 >
                   <CalendarDays size={16} />
-                  {at ? "Schedule article" : "Queue publication now"}
+                  {cloudSchedule
+                    ? "Schedule on Blogger"
+                    : at
+                      ? "Schedule article"
+                      : "Queue publication now"}
                 </button>
               </div>
             </Modal>

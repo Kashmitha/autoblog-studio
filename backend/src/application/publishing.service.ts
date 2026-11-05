@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaService } from "../infrastructure/prisma.service";
 import { ArticlesService } from "./articles.service";
 import { LiveBloggerAdapter } from "../infrastructure/blogger.service";
-import { safeHtml } from "../domain/quality";
+import { publicationHtml } from "../domain/publication";
 import { env } from "../config";
 export const redisConnection = () => {
   const u = new URL(env.redis);
@@ -23,14 +23,6 @@ export const redisConnection = () => {
     maxRetriesPerRequest: null,
   };
 };
-export const escapeHtml = (s: string) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
 export class DeferredPublication extends Error {}
 @Injectable()
 export class PublishingService implements OnModuleDestroy {
@@ -63,6 +55,10 @@ export class PublishingService implements OnModuleDestroy {
         "Choose a current or future publication time.",
       );
     const a = await this.articles.get(id);
+    if (a.publishingTarget === "blogger")
+      throw new ConflictException(
+        "This post is managed by Blogger. Sync its status or manage its schedule on Blogger.",
+      );
     if (a.status !== "APPROVED")
       throw new BadRequestException("Only approved articles can be scheduled.");
     if (!(await this.articles.quality(id)).passed)
@@ -87,7 +83,12 @@ export class PublishingService implements OnModuleDestroy {
     }
     const job = await this.db.$transaction(async (tx) => {
       const changed = await tx.article.updateMany({
-        where: { id, status: "APPROVED", version: a.version },
+        where: {
+          id,
+          status: "APPROVED",
+          version: a.version,
+          publishingTarget: "local",
+        },
         data: { status: "SCHEDULED", scheduledAt: date },
       });
       if (!changed.count)
@@ -137,6 +138,10 @@ export class PublishingService implements OnModuleDestroy {
     await this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
       const a = await tx.article.findUniqueOrThrow({ where: { id } });
+      if (a.publishingTarget === "blogger")
+        throw new ConflictException(
+          "Cancel this schedule on Blogger, then sync. Local controls cannot cancel Google's schedule.",
+        );
       if (a.status !== "SCHEDULED")
         throw new BadRequestException(
           "Only scheduled articles can be canceled.",
@@ -162,7 +167,7 @@ export class PublishingService implements OnModuleDestroy {
   }
   async reconcile() {
     const jobs = await this.db.publishJob.findMany({
-      where: { state: { in: ["PENDING", "RUNNING"] } },
+      where: { target: "local", state: { in: ["PENDING", "RUNNING"] } },
       take: 500,
       orderBy: { scheduledAt: "asc" },
     });
@@ -217,7 +222,7 @@ export class PublishingService implements OnModuleDestroy {
         });
         if (exists) continue;
         const a = await this.db.article.findFirst({
-          where: { status: "APPROVED" },
+          where: { status: "APPROVED", publishingTarget: "local" },
           orderBy: { approvedAt: "asc" },
         });
         if (!a) return;
@@ -256,6 +261,8 @@ export class PublishingService implements OnModuleDestroy {
     });
     if (
       !j ||
+      j.target === "blogger" ||
+      j.article.publishingTarget === "blogger" ||
       ["SUCCEEDED", "MOCK_SUCCEEDED", "CANCELED", "FAILED"].includes(j.state)
     )
       return;
@@ -370,15 +377,7 @@ export class PublishingService implements OnModuleDestroy {
         "The selected blog changed after this job was scheduled. Cancel and review the destination.",
       );
     let postId = a.remotePostId;
-    const figures = a.media
-      .map(
-        ({ media: m }) =>
-          `<figure><img src="${escapeHtml(m.url)}" alt="${escapeHtml(m.alt)}" loading="lazy" /><figcaption>${m.profileUrl ? `<a href="${escapeHtml(m.profileUrl)}">${escapeHtml(m.creator)}</a> · ` : ""}${escapeHtml(m.attribution)} — <a href="${escapeHtml(m.sourceUrl)}">Source</a> · <a href="${escapeHtml(m.licenseUrl)}">${escapeHtml(m.license)}</a></figcaption></figure>`,
-      )
-      .join("");
-    const content = safeHtml(
-      `${a.html}${figures}${a.aiAssisted && a.disclosure ? "<p><em>Prepared with AI assistance.</em></p>" : ""}`,
-    );
+    const content = publicationHtml(a);
     if (!postId) {
       if (a.draftAttemptedAt)
         throw new UnrecoverableError(
@@ -506,6 +505,10 @@ export class PublishingService implements OnModuleDestroy {
         "Only permanently failed jobs can be retried.",
       );
     const a = await this.articles.get(j.articleId);
+    if (j.target === "blogger" || a.publishingTarget === "blogger")
+      throw new BadRequestException(
+        "Sync or manage this post on Blogger; local retry cannot publish a Blogger-managed post.",
+      );
     if (a.draftAttemptedAt && !a.remotePostId)
       throw new BadRequestException(
         "Reconcile the uncertain remote draft first.",

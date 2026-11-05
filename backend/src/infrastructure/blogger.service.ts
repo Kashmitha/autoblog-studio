@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { blogger } from "googleapis/build/src/apis/blogger";
+import { blogger, blogger_v3 } from "googleapis/build/src/apis/blogger";
 import { OAuth2Client } from "google-auth-library";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "./prisma.service";
@@ -151,16 +151,30 @@ export class GoogleService {
       where: { provider: "google" },
     });
     if (!i?.blogId) throw new BadRequestException("Select a blog first.");
-    return (
-      (
-        await blogger({ version: "v3", auth: await this.client() }).posts.list({
+    const api = blogger({ version: "v3", auth: await this.client() });
+    const posts: blogger_v3.Schema$Post[] = [];
+    let pageToken: string | undefined;
+    const seen = new Set<string>();
+    for (let page = 0; page < 20; page++) {
+      const { data } = await api.posts.list(
+        {
           blogId: i.blogId,
           status: ["LIVE", "DRAFT", "SCHEDULED"],
           fetchBodies: false,
           view: "ADMIN",
           maxResults: 50,
-        })
-      ).data.items || []
+          pageToken,
+        },
+        { timeout: 20000 },
+      );
+      posts.push(...(data.items || []));
+      if (!data.nextPageToken) return posts;
+      if (seen.has(data.nextPageToken)) break;
+      seen.add(data.nextPageToken);
+      pageToken = data.nextPageToken;
+    }
+    throw new BadRequestException(
+      "Could not finish reading Blogger posts. No new post was created; retry the read or link the known post directly.",
     );
   }
   async disconnect() {
@@ -211,19 +225,32 @@ export interface BloggerAdapter {
     id: string,
   ): Promise<{ id: string; url: string; status: string }>;
 }
+export interface RemoteBloggerPost {
+  id: string;
+  url: string;
+  status: string;
+  title?: string;
+  published?: string | null;
+}
 @Injectable()
 export class LiveBloggerAdapter implements BloggerAdapter {
   constructor(private readonly google: GoogleService) {}
   private async api() {
     return blogger({ version: "v3", auth: await this.google.client() });
   }
-  async getPost(blogId: string, postId: string) {
+  async getPost(blogId: string, postId: string): Promise<RemoteBloggerPost> {
     const p = (
       await (
         await this.api()
       ).posts.get({ blogId, postId, view: "ADMIN" }, { timeout: 20000 })
     ).data;
-    return { id: p.id!, url: p.url || "", status: p.status || "" };
+    return {
+      id: p.id!,
+      url: p.url || "",
+      status: p.status || "",
+      title: p.title || "",
+      published: p.published || null,
+    };
   }
   async createDraft(
     blogId: string,
@@ -254,13 +281,29 @@ export class LiveBloggerAdapter implements BloggerAdapter {
       { timeout: 20000 },
     );
   }
-  async publish(blogId: string, postId: string) {
+  async publish(blogId: string, postId: string): Promise<RemoteBloggerPost> {
     const p = (
       await (
         await this.api()
       ).posts.publish({ blogId, postId }, { timeout: 20000, retry: false })
     ).data;
-    return { id: p.id!, url: p.url || "", status: p.status || "LIVE" };
+    return {
+      id: p.id!,
+      url: p.url || "",
+      status: p.status || "LIVE",
+      title: p.title || "",
+      published: p.published || null,
+    };
+  }
+  async schedulePost(blogId: string, postId: string, publishDate: string) {
+    // Never automatically replay a write with an uncertain remote outcome.
+    await (
+      await this.api()
+    ).posts.publish(
+      { blogId, postId, publishDate },
+      { timeout: 20000, retry: false },
+    );
+    return this.getPost(blogId, postId);
   }
 }
 export class MockBloggerAdapter implements BloggerAdapter {

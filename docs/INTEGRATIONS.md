@@ -17,6 +17,8 @@ Uses the official Google Node client, OAuth state tied to a DB session, PKCE, of
 
 Scope: `https://www.googleapis.com/auth/blogger`. Reporting adds `webmasters.readonly` and `analytics.readonly` only through the explicit reporting connection action. Google test-mode refresh-token expiry and OAuth verification requirements depend on account/project configuration; inspect current console guidance. A first real test needs separate owner authorization in the UI, plus BLOGGER_MODE=live, approved content and resumed automation.
 
+Added 5 November: after that successful first test, approved articles can be sent immediately to Blogger with a future `publishDate`. An ADMIN read confirms SCHEDULED and the accepted timestamp before Studio reports success. These cloud jobs never enter the local worker queue and can run with this computer off. Manual posts can be explicitly linked and read-only status sync records SCHEDULED/LIVE/DRAFT without overwriting content. Local pause/emergency stop cannot cancel an already accepted Google schedule. See [Blogger scheduling](BLOGGER_SCHEDULING.md) for recovery, controls and live-verification limits.
+
 ## AI generation
 
 Used the OpenAI Docs skill to check [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs) and the [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). The AiProvider abstraction is replaceable. The initial implementation calls the fixed official Responses endpoint with store=false, schema-constrained output, model/output limits and a bounded researched prompt. No arbitrary provider URL is accepted.

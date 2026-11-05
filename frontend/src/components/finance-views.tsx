@@ -791,11 +791,16 @@ export function Jobs({ notify }: ViewProps) {
                         </td>
                         <td>
                           <Badge value={j.mode} />
+                          <div className="subtle small">
+                            {j.target === "blogger"
+                              ? "Managed by Blogger"
+                              : "Local worker"}
+                          </div>
                         </td>
                         <td>{j.attempts}</td>
                         <td>
                           <span className="small warning-text">{j.error}</span>
-                          {j.state === "FAILED" && (
+                          {j.state === "FAILED" && j.target !== "blogger" && (
                             <button
                               className="text-button"
                               disabled={a.busy}

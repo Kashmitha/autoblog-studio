@@ -10,6 +10,9 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
       url: "https://fixture.example/",
     },
   ];
+  await page.route("**/api/blogger/sync", (route) =>
+    route.fulfill({ json: { results: [] } }),
+  );
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({
       json: {

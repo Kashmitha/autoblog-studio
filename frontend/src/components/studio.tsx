@@ -137,6 +137,24 @@ export default function Studio() {
         .catch((e) => notify(e.message, true));
   }, [auth, notify, path]);
   useEffect(() => {
+    if (!auth) return;
+    void post<{ results: { error?: string }[] }>("/blogger/sync")
+      .then((result) => {
+        window.dispatchEvent(new Event("blogger-status-synced"));
+        if (result.results.some((r) => r.error))
+          notify(
+            "Some Blogger statuses could not be refreshed. Open the article for details.",
+            true,
+          );
+      })
+      .catch(() =>
+        notify(
+          "Blogger status could not be refreshed. Last saved statuses are shown.",
+          true,
+        ),
+      );
+  }, [auth, notify]);
+  useEffect(() => {
     setMobile(false);
   }, [path]);
   async function login(e: React.FormEvent) {

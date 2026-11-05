@@ -158,21 +158,35 @@ export class MediaController {
           "Stock images must preserve provider delivery URLs.",
         );
       if (
-        asset.articles.some((a) =>
-          ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.article.status),
+        asset.articles.some(
+          (a) =>
+            a.article.publishingTarget === "blogger" ||
+            ["SCHEDULED", "PUBLISHING", "PUBLISHED"].includes(a.article.status),
         )
       )
         throw new BadRequestException(
           "Unschedule all attached articles before changing delivery. Published assets are immutable.",
         );
-      await tx.article.updateMany({
-        where: { id: { in: asset.articles.map((a) => a.articleId) } },
+      const changed = await tx.article.updateMany({
+        where: {
+          id: { in: asset.articles.map((a) => a.articleId) },
+          publishingTarget: "local",
+          status: { notIn: ["SCHEDULED", "PUBLISHING", "PUBLISHED"] },
+          OR: asset.articles.map((a) => ({
+            id: a.articleId,
+            version: a.article.version,
+          })),
+        },
         data: {
           status: "NEEDS_REVIEW",
           approvedAt: null,
           version: { increment: 1 },
         },
       });
+      if (changed.count !== asset.articles.length)
+        throw new BadRequestException(
+          "An attached article changed or was sent to Blogger. Refresh before changing image delivery.",
+        );
       return tx.mediaAsset.update({
         where: { id },
         data: {

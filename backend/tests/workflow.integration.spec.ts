@@ -10,7 +10,11 @@ import {
   redisConnection,
   DeferredPublication,
 } from "../src/application/publishing.service";
-import { LiveBloggerAdapter } from "../src/infrastructure/blogger.service";
+import {
+  LiveBloggerAdapter,
+  GoogleService,
+} from "../src/infrastructure/blogger.service";
+import { CloudPublishingService } from "../src/application/cloud-publishing.service";
 import { env } from "../src/config";
 import { AiService } from "../src/application/ai.service";
 import { ArticlesService } from "../src/application/articles.service";
@@ -470,20 +474,16 @@ test.each([false, true])(
     const update = jest
       .spyOn(adapter, "updateDraft")
       .mockResolvedValue(undefined);
-    jest
-      .spyOn(adapter, "getPost")
-      .mockResolvedValue({
-        id: `footer-post-${disclosure}`,
-        url: "",
-        status: "DRAFT",
-      });
-    jest
-      .spyOn(adapter, "publish")
-      .mockResolvedValue({
-        id: `footer-post-${disclosure}`,
-        url: "https://example.com/isolated-footer",
-        status: "LIVE",
-      });
+    jest.spyOn(adapter, "getPost").mockResolvedValue({
+      id: `footer-post-${disclosure}`,
+      url: "",
+      status: "DRAFT",
+    });
+    jest.spyOn(adapter, "publish").mockResolvedValue({
+      id: `footer-post-${disclosure}`,
+      url: "https://example.com/isolated-footer",
+      status: "LIVE",
+    });
     const original = env.bloggerMode;
     env.bloggerMode = "live";
     try {
@@ -696,3 +696,401 @@ test("uncertain AI outcomes retain the conservative reservation", async () => {
     expect(Number(usage.costUsd)).toBeCloseTo(Number(usage.reservedUsd), 6);
   });
 });
+
+let cloudCase = 0;
+async function withCloud(
+  run: (f: {
+    id: string;
+    title: string;
+    at: string;
+    remote: {
+      id: string;
+      title: string;
+      status: string;
+      published: string;
+      url: string;
+    };
+    create: jest.SpyInstance;
+    schedule: jest.SpyInstance;
+    read: jest.SpyInstance;
+    list: jest.SpyInstance;
+    cloud: CloudPublishingService;
+  }) => Promise<void>,
+) {
+  const number = ++cloudCase;
+  const previousMode = env.bloggerMode;
+  const previousSettings = await db.automationSettings.findUniqueOrThrow({
+    where: { id: "owner" },
+  });
+  const previousIntegration = await db.integration.findUnique({
+    where: { provider: "google" },
+  });
+  const title = `Independent cloud scenario ${number} publication fixture`;
+  const at = new Date(Date.now() + (30 + number) * 86400000).toISOString();
+  const body = `<h2>Cloud scenario ${number}</h2><p>${Array.from({ length: 220 }, (_, n) => `cloudscenario${number}word${n}`).join(" ")} <a href="${source}">Primary reference</a></p>`;
+  const article = await db.article.create({
+    data: {
+      title,
+      slug: `cloud-scenario-${number}`,
+      html: body,
+      excerpt: "Isolated cloud schedule fixture",
+      labels: ["Git", "Troubleshooting"],
+      aiAssisted: true,
+      disclosure: false,
+      status: "APPROVED",
+      approvedAt: new Date(),
+      sources: {
+        create: {
+          url: source,
+          title: "Primary reference",
+          note: "Isolated verified source fixture",
+          httpStatus: 200,
+          checkedAt: new Date(),
+        },
+      },
+    },
+  });
+  const remote = {
+    id: String(900000 + number),
+    title,
+    status: "SCHEDULED",
+    published: at,
+    url: `https://example.com/cloud-${number}`,
+  };
+  const adapter = app.get(LiveBloggerAdapter);
+  const create = jest
+    .spyOn(adapter, "createDraft")
+    .mockResolvedValue(remote.id);
+  const schedule = jest
+    .spyOn(adapter, "schedulePost")
+    .mockImplementation(async () => ({ ...remote }));
+  const read = jest
+    .spyOn(adapter, "getPost")
+    .mockImplementation(async () => ({ ...remote }));
+  const list = jest
+    .spyOn(app.get(GoogleService), "posts")
+    .mockResolvedValue([]);
+  env.bloggerMode = "live";
+  await db.integration.upsert({
+    where: { provider: "google" },
+    create: {
+      provider: "google",
+      encryptedTokens: "never sent",
+      blogId: "cloud-blog",
+      firstLiveTestAuthorizedAt: new Date(),
+      liveTestSucceededAt: new Date(),
+    },
+    update: {
+      blogId: "cloud-blog",
+      firstLiveTestAuthorizedAt: new Date(),
+      liveTestSucceededAt: new Date(),
+    },
+  });
+  await db.automationSettings.update({
+    where: { id: "owner" },
+    data: { paused: true, emergencyStop: false, dailyLimit: 2, times: [] },
+  });
+  try {
+    await run({
+      id: article.id,
+      title,
+      at,
+      remote,
+      create,
+      schedule,
+      read,
+      list,
+      cloud: app.get(CloudPublishingService),
+    });
+  } finally {
+    env.bloggerMode = previousMode;
+    jest.restoreAllMocks();
+    await db.publishJob.deleteMany({ where: { articleId: article.id } });
+    await db.article.delete({ where: { id: article.id } });
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: {
+        paused: previousSettings.paused,
+        emergencyStop: previousSettings.emergencyStop,
+        dailyLimit: previousSettings.dailyLimit,
+        times: previousSettings.times,
+      },
+    });
+    if (previousIntegration)
+      await db.integration.update({
+        where: { provider: "google" },
+        data: previousIntegration,
+      });
+    else await db.integration.deleteMany({ where: { provider: "google" } });
+  }
+}
+
+test("cloud scheduling requires authentication and CSRF", async () => {
+  await request(app.getHttpServer())
+    .post("/api/blogger/sync")
+    .set("Origin", origin)
+    .send({})
+    .expect(401);
+  await agent
+    .post("/api/blogger/sync")
+    .set("Origin", origin)
+    .send({})
+    .expect(403);
+});
+
+test("Blogger accepts a future schedule while local automation is paused; local edits, cancel and worker replay cannot duplicate it", async () =>
+  withCloud(async (f) => {
+    const before = await publisher.queue.getJobCounts("delayed", "waiting");
+    const r = await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(201);
+    expect(r.body).toMatchObject({
+      status: "SCHEDULED",
+      publishingTarget: "blogger",
+      remoteStatus: "SCHEDULED",
+      scheduledAt: f.at,
+    });
+    expect(f.create.mock.calls[0]).toEqual([
+      "cloud-blog",
+      f.title,
+      expect.not.stringContaining("Prepared with AI assistance"),
+      ["Git", "Troubleshooting"],
+    ]);
+    expect(f.schedule).toHaveBeenCalledWith("cloud-blog", f.remote.id, f.at);
+    const job = await db.publishJob.findFirstOrThrow({
+      where: { articleId: f.id },
+    });
+    expect(job).toMatchObject({ target: "blogger", state: "REMOTE_SCHEDULED" });
+    expect(await publisher.queue.getJobCounts("delayed", "waiting")).toEqual(
+      before,
+    );
+    await publisher.process(job.id);
+    expect(f.create).toHaveBeenCalledTimes(1);
+    await mutate("post", `/articles/${f.id}/unschedule`, {}).expect(409);
+    await mutate("post", `/articles/${f.id}/schedule`, { at: f.at }).expect(
+      409,
+    );
+    await mutate("patch", `/articles/${f.id}`, {
+      title: f.title,
+      niche: "Git",
+      version: 1,
+    }).expect(409);
+    await mutate("post", `/articles/${f.id}/transition`, {
+      status: "APPROVED",
+      reason: "Attempted bypass of remote schedule",
+    }).expect(409);
+  }));
+
+test("cloud scheduling rejects unsafe dates, missing approval, emergency stop and reserved daily limits before uploading", async () =>
+  withCloud(async (f) => {
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: new Date().toISOString(),
+    }).expect(400);
+    await db.article.update({
+      where: { id: f.id },
+      data: { status: "NEEDS_REVIEW", approvedAt: null },
+    });
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(409);
+    await db.article.update({
+      where: { id: f.id },
+      data: { status: "APPROVED", approvedAt: new Date() },
+    });
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: { emergencyStop: true },
+    });
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(409);
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: { emergencyStop: false, dailyLimit: 1 },
+    });
+    await db.publishJob.create({
+      data: {
+        articleId: f.id,
+        key: `reserved-${f.id}`,
+        scheduledAt: new Date(f.at),
+        state: "REMOTE_SCHEDULED",
+        target: "blogger",
+      },
+    });
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(409);
+    expect(f.create).not.toHaveBeenCalled();
+  }));
+
+test("an existing Blogger title blocks insertion and requires explicit linking", async () =>
+  withCloud(async (f) => {
+    f.list.mockResolvedValue([{ ...f.remote }]);
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(409);
+    expect(f.create).not.toHaveBeenCalled();
+  }));
+
+test("ambiguous insertion is never repeated and can be recovered by explicitly linking the accepted post", async () =>
+  withCloud(async (f) => {
+    f.create.mockRejectedValue(new Error("Simulated lost insertion response"));
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(400);
+    expect(
+      (await db.article.findUniqueOrThrow({ where: { id: f.id } }))
+        .draftAttemptedAt,
+    ).not.toBeNull();
+    expect(
+      (await db.publishJob.findFirstOrThrow({ where: { articleId: f.id } }))
+        .state,
+    ).toBe("CLOUD_UNCERTAIN");
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(409);
+    await mutate("post", `/blogger/articles/${f.id}/link`, {
+      postId: f.remote.id,
+      confirmation: "LINK EXISTING BLOGGER POST",
+    }).expect(201);
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).not.toHaveBeenCalled();
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(1);
+  }));
+
+test("a lost schedule response is recovered by a read without publishing again", async () =>
+  withCloud(async (f) => {
+    f.schedule.mockRejectedValue(
+      new Error("Google accepted but response lost"),
+    );
+    await mutate("post", `/blogger/articles/${f.id}/schedule`, {
+      at: f.at,
+    }).expect(400);
+    const synced = await mutate(
+      "post",
+      `/blogger/articles/${f.id}/sync`,
+      {},
+    ).expect(201);
+    expect(synced.body.results[0].status).toBe("SCHEDULED");
+    expect(f.schedule).toHaveBeenCalledTimes(1);
+    expect(f.create).toHaveBeenCalledTimes(1);
+  }));
+
+test("manual Blogger schedules link idempotently, retain their dates, and never modify remote content", async () =>
+  withCloud(async (f) => {
+    await mutate("post", `/blogger/articles/${f.id}/link`, {
+      postId: f.remote.id,
+      confirmation: "wrong",
+    }).expect(400);
+    f.remote.title = "Different post title";
+    await mutate("post", `/blogger/articles/${f.id}/link`, {
+      postId: f.remote.id,
+      confirmation: "LINK EXISTING BLOGGER POST",
+    }).expect(409);
+    f.remote.title = f.title;
+    for (let n = 0; n < 2; n++)
+      await mutate("post", `/blogger/articles/${f.id}/link`, {
+        postId: f.remote.id,
+        confirmation: "LINK EXISTING BLOGGER POST",
+      }).expect(201);
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(1);
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+    expect(
+      (
+        await db.article.findUniqueOrThrow({ where: { id: f.id } })
+      ).scheduledAt?.toISOString(),
+    ).toBe(f.at);
+  }));
+
+test("status sync records confirmed LIVE publication and Blogger's timestamp without a new write", async () =>
+  withCloud(async (f) => {
+    await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
+    f.remote.status = "LIVE";
+    f.remote.published = "2026-01-01T03:30:00.000Z";
+    await f.cloud.sync(f.id);
+    const article = await db.article.findUniqueOrThrow({ where: { id: f.id } });
+    expect(article).toMatchObject({
+      status: "PUBLISHED",
+      remoteStatus: "LIVE",
+      publishedUrl: f.remote.url,
+      scheduledAt: null,
+    });
+    expect(article.publishedAt?.toISOString()).toBe(f.remote.published);
+    expect(
+      (await db.publishJob.findFirstOrThrow({ where: { articleId: f.id } }))
+        .state,
+    ).toBe("SUCCEEDED");
+    expect(
+      (
+        await db.publishJob.findFirstOrThrow({ where: { articleId: f.id } })
+      ).finishedAt?.toISOString(),
+    ).toBe(f.remote.published);
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+
+test("sync failures preserve the last confirmed schedule; changed blogs and unsupported remote states never mark a post published", async () =>
+  withCloud(async (f) => {
+    await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
+    f.read.mockRejectedValueOnce(new Error("Remote unavailable"));
+    expect((await f.cloud.sync(f.id)).results[0].error).toBeTruthy();
+    let article = await db.article.findUniqueOrThrow({ where: { id: f.id } });
+    expect(article.status).toBe("SCHEDULED");
+    expect(article.remoteSyncError).toBeTruthy();
+    f.remote.status = "UNKNOWN";
+    await f.cloud.sync(f.id);
+    expect(
+      (await db.article.findUniqueOrThrow({ where: { id: f.id } })).status,
+    ).toBe("SCHEDULED");
+    f.remote.status = "SCHEDULED";
+    await db.integration.update({
+      where: { provider: "google" },
+      data: { blogId: "other-blog" },
+    });
+    expect((await f.cloud.sync(f.id)).results[0].error).toBeTruthy();
+    article = await db.article.findUniqueOrThrow({ where: { id: f.id } });
+    expect(article.remoteBlogId).toBe("cloud-blog");
+    expect(article.status).toBe("SCHEDULED");
+  }));
+
+test("a post reverted to a Blogger draft stays protected from local editing and republication", async () =>
+  withCloud(async (f) => {
+    await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
+    f.remote.status = "DRAFT";
+    await f.cloud.sync(f.id);
+    expect(
+      await db.article.findUniqueOrThrow({ where: { id: f.id } }),
+    ).toMatchObject({
+      status: "FAILED",
+      publishingTarget: "blogger",
+      remoteStatus: "DRAFT",
+      scheduledAt: null,
+    });
+    await mutate("patch", `/articles/${f.id}`, {
+      title: f.title,
+      niche: "Git",
+      version: 1,
+    }).expect(409);
+    const job = await db.publishJob.findFirstOrThrow({
+      where: { articleId: f.id },
+    });
+    await expect(publisher.retry(job.id)).rejects.toThrow();
+    expect(f.create).not.toHaveBeenCalled();
+  }));
+
+test("two concurrent cloud schedule requests upload only one post", async () =>
+  withCloud(async (f) => {
+    const results = await Promise.allSettled([
+      f.cloud.schedule(f.id, f.at),
+      f.cloud.schedule(f.id, f.at),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).toHaveBeenCalledTimes(1);
+    expect(
+      await db.publishJob.count({
+        where: { articleId: f.id, target: "blogger" },
+      }),
+    ).toBe(1);
+  }));
