@@ -1,5 +1,7 @@
 # Verification evidence
 
+Latest indexing/reporting update (5 November): [Search Console verification](SEARCH_CONSOLE_TESTING.md) records 81 unit tests, 52 isolated integration tests, ten Edge tests, six actual-data UI checks and the remaining read-consent checkpoint. Earlier evidence below is historical.
+
 Latest scheduling update (5 November): see [Blogger scheduling verification](CLOUD_SCHEDULING_TESTING.md) for 49 unit tests, 38 isolated integration tests, six browser tests and actual owner-schedule linking. The original 4 November evidence below is retained as historical context.
 
 Local verification on Windows, 4 November 2026. Results below are executed checks, not anticipated outcomes. The initial build used mocked account integrations. The owner subsequently configured Google OAuth, granted the first-live authorization and approved the first article. One actual Blogger publication is now verified. No paid model request was made.

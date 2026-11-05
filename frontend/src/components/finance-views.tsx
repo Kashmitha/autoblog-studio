@@ -1,4 +1,5 @@
 "use client";
+import { IndexingOverview } from "./indexing";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -446,6 +447,7 @@ export function Traffic({ notify, integrations }: ViewProps) {
         title="Understand how people find you."
         description="Connect authorized reporting or import your real traffic records."
       />
+      <IndexingOverview notify={notify} />
       <ResourceState {...r} />
       {d && (
         <div className="metric-grid">
@@ -508,7 +510,11 @@ export function Traffic({ notify, integrations }: ViewProps) {
           <div className="inline wrap">
             <button
               className="secondary"
-              disabled={a.busy || !integrations?.searchConsoleConfigured}
+              disabled={
+                a.busy ||
+                !integrations?.searchConsoleConfigured ||
+                !integrations?.searchConsoleReadAccess
+              }
               onClick={() =>
                 a.run(async () => {
                   const x = await post<{ imported: number; note: string }>(
@@ -525,7 +531,11 @@ export function Traffic({ notify, integrations }: ViewProps) {
             </button>
             <button
               className="secondary"
-              disabled={a.busy || !integrations?.analyticsConfigured}
+              disabled={
+                a.busy ||
+                !integrations?.analyticsConfigured ||
+                !integrations?.analyticsReadAccess
+              }
               onClick={() =>
                 a.run(async () => {
                   const x = await post<{ imported: number }>(

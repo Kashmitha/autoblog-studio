@@ -11,6 +11,7 @@ import { StudioController } from "./api/studio.controller";
 import { HealthController } from "./api/health.controller";
 import { MediaController } from "./api/media.controller";
 import { CloudPublishingController } from "./api/cloud-publishing.controller";
+import { SearchConsoleController } from "./api/search-console.controller";
 @Module({
   imports: [
     DatabaseModule,
@@ -26,6 +27,7 @@ import { CloudPublishingController } from "./api/cloud-publishing.controller";
     HealthController,
     MediaController,
     CloudPublishingController,
+    SearchConsoleController,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

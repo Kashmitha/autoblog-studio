@@ -7,6 +7,8 @@ import { AiProvider, OpenAiProvider } from "../infrastructure/ai.provider";
 import { AiService } from "../application/ai.service";
 import { MediaService } from "../application/media.service";
 import { ReportingService } from "../application/reporting.service";
+import { SearchConsoleService } from "../application/search-console.service";
+import { SearchConsoleAdapter } from "../infrastructure/search-console.adapter";
 import { ArticlesModule } from "./articles.module";
 import { MetricsModule } from "./metrics.module";
 @Module({
@@ -17,6 +19,8 @@ import { MetricsModule } from "./metrics.module";
     AiService,
     MediaService,
     ReportingService,
+    SearchConsoleService,
+    SearchConsoleAdapter,
     { provide: AiProvider, useClass: OpenAiProvider },
   ],
   exports: [
@@ -25,6 +29,8 @@ import { MetricsModule } from "./metrics.module";
     AiService,
     MediaService,
     ReportingService,
+    SearchConsoleService,
+    SearchConsoleAdapter,
   ],
 })
 export class IntegrationsModule {}

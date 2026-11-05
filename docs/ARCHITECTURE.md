@@ -15,6 +15,7 @@ AutoBlog Studio is a single-owner npm-workspace monorepo. Next.js App Router is 
 - Blogger defaults to a clearly labeled mock adapter. Mock jobs never count as published articles or business revenue. Live mode requires OAuth, an owned blog, explicit initial-test authorization, and a successful first test before routine automation.
 - Research checks public HTTPS URLs with pinned DNS results and bounded redirects, timeouts and response size. Source-review notes are human evidence; automated checks do not certify facts, licenses or originality.
 - Real financial and traffic records start empty. Estimates are separate from actual revenue and excluded from net profit. AI cost reservations are serialized in PostgreSQL before requests. Paid AI starts disabled.
+- Search Console uses separate read consent and a selected verified property. IndexInspection observations are stored independently of articles/jobs and keyed by article, property and published URL; failed refreshes retain the latest successful result. Only PUBLISHED articles can be inspected. Cached/bounded manual reads use Google's stored-index API and never request indexing or a live test. OAuth token refresh writes use an optimistic encrypted-token comparison to preserve newer grants. See SEARCH_CONSOLE.md.
 
 ## Extension seams
 

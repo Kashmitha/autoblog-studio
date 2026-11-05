@@ -2282,6 +2282,51 @@ tr:last-child td {
     left: 10px;
   }
 }
+.break-url {
+  overflow-wrap: anywhere;
+}
+.indexing-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 10px 16px;
+  font-size: 12px;
+  margin: 18px 0;
+}
+.indexing-details dt {
+  color: var(--muted);
+}
+.indexing-details dd {
+  margin: 0;
+  min-width: 0;
+}
+.indexing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+.indexing-row > div {
+  min-width: 0;
+}
+.indexing-row > button {
+  flex-shrink: 0;
+}
+.badge-indexed {
+  color: #267553;
+  background: #26755314;
+}
+.badge-not_indexed,
+.badge-unavailable {
+  color: #a74930;
+  background: #a7493014;
+}
+@media (max-width: 760px) {
+  .indexing-row {
+    flex-direction: column;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *:before,

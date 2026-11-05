@@ -74,12 +74,14 @@ Complete these steps and reply DONE.
 
 ## G — Optional Search Console and Google Analytics reporting
 
-1. Verify the real blog/property in [Search Console](https://search.google.com/search-console). Set up a GA4 property and actual tracking in Blogger if desired.
-2. Enable Search Console API and Google Analytics Data API in the same Google Cloud project.
-3. Set SEARCH_CONSOLE_SITE_URL to the exact verified property (`https://.../` or `sc-domain:...`). Set GA_PROPERTY_ID to the numeric property ID. Store these locally in `.env`.
-4. Restart API. In Integration setup, click **Authorize Google reporting scopes** and grant read-only reporting access.
-5. In Traffic & SEO, sync a small date range. Compare date/page rows with the official report. Reporting delays, property timezones and Search Console top-row limits may explain differences.
-6. Verify a sitemap URL in the app, then submit it manually under the correct Search Console property's Sitemaps section.
+The owner already has the blog property and reports sitemap Success. Do not repeat those steps. Studio's API access is a separate connection.
+
+1. Enable **Search Console API** in the existing Blogger Google Cloud project if needed. Keep the existing OAuth client and redirect URI.
+2. Open **Blog connections → Search Console connection → Connect Search Console read access**. Complete Google's consent with the same account as Blogger. Analytics consent is separate and optional.
+3. Choose **Load verified properties**, select the already verified matching property and **Use this property**. The UI saves it locally; SEARCH_CONSOLE_SITE_URL remains an environment fallback, not a required duplicate setup step.
+4. On the published article, refresh **Google indexing** and compare its stored verdict and crawl time with Search Console. This is not Test Live URL and does not request indexing. Scheduled articles stay ineligible until Blogger confirms publication.
+5. In Traffic & SEO, sync a small date range. Compare real date/page rows with the official report. Reporting delays, property timezones and Search Console top-row limits may explain differences. See [the complete guide](SEARCH_CONSOLE.md).
+6. For optional pageviews, configure actual GA4 tracking/property, enable Analytics Data API, set GA_PROPERTY_ID privately and authorize Google Analytics read access. This is not required for indexing inspection or search clicks/impressions.
 
 Success: real source-labeled records, with unavailable values left blank. This app does not initiate a payment. If the external platform requires a billable change, review before accepting.
 

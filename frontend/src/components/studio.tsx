@@ -138,6 +138,17 @@ export default function Studio() {
   }, [auth, notify, path]);
   useEffect(() => {
     if (!auth) return;
+    const refresh = () => {
+      void api<Integrations>("/integrations")
+        .then(setIntegrations)
+        .catch((e) => notify(e.message, true));
+    };
+    window.addEventListener("reporting-config-changed", refresh);
+    return () =>
+      window.removeEventListener("reporting-config-changed", refresh);
+  }, [auth, notify]);
+  useEffect(() => {
+    if (!auth) return;
     void post<{ results: { error?: string }[] }>("/blogger/sync")
       .then((result) => {
         window.dispatchEvent(new Event("blogger-status-synced"));

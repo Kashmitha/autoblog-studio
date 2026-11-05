@@ -13,6 +13,17 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
   await page.route("**/api/blogger/sync", (route) =>
     route.fulfill({ json: { results: [] } }),
   );
+  await page.route("**/api/seo/search-console", (route) =>
+    route.fulfill({
+      json: {
+        siteUrl: null,
+        configured: false,
+        readAccess: false,
+        googleConnected: true,
+        googleConfigured: true,
+      },
+    }),
+  );
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({
       json: {

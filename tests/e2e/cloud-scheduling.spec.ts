@@ -57,6 +57,29 @@ test("Blogger scheduling uses Sri Lanka time and shows confirmed remote status w
         },
       });
     if (path === "/api/media") return route.fulfill({ json: [] });
+    if (path === "/api/seo/articles/cloud-ui-fixture/indexing")
+      return route.fulfill({
+        json: {
+          articleId: article.id,
+          title: article.title,
+          publishingStatus: article.status,
+          url: article.publishedUrl,
+          eligible: true,
+          canInspect: false,
+          blockedReason:
+            "Select your verified Search Console property in Blog connections.",
+          latest: null,
+          lastAttempt: null,
+          history: [],
+          configuration: {
+            siteUrl: null,
+            configured: false,
+            readAccess: false,
+            googleConnected: true,
+            googleConfigured: true,
+          },
+        },
+      });
     if (path === "/api/articles/cloud-ui-fixture")
       return route.fulfill({ json: article });
     if (path === "/api/articles") return route.fulfill({ json: [article] });

@@ -43,6 +43,8 @@ No dashboard scraping, automated publisher login, traffic generation or automati
 
 ## Search Console and Analytics
 
+Updated 5 November: the Search Console connection panel requests read-only access separately from Analytics, loads verified accessible properties and saves the selected property locally. Stored-index inspection, per-article history and separate publishing/indexing status are implemented. Traffic imports use that selection, with SEARCH_CONSOLE_SITE_URL retained as a fallback. API errors preserve earlier inspection observations. See [Search Console setup and behavior](SEARCH_CONSOLE.md) and [executed verification](SEARCH_CONSOLE_TESTING.md). Real inspection/traffic reads remain pending the owner's read consent and API enablement; property access and sitemap Success in the web console alone do not grant Studio API access.
+
 [Search Analytics query](https://developers.google.com/webmaster-tools/v1/searchanalytics/query), [Analytics Data runReport](https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/properties/runReport), [Search Console](https://search.google.com/search-console).
 
 Authorized reporting pulls date/page search metrics or GA4 pageviews with pagination and bounded date windows, and upserts source-labeled records. Search Console is top-row data and can omit low-volume rows; Pacific reporting dates are preserved. GA dates follow property settings. Prefer Google source records over manual records when both exist rather than silently double-counting them. CSV imports must not mix aggregate site totals and URL-level records for the same source/date.

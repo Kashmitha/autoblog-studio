@@ -184,6 +184,47 @@ export interface Integrations {
   googleConfigured: boolean;
   unsplashConfigured: boolean;
   searchConsoleConfigured: boolean;
+  searchConsoleSiteUrl?: string | null;
+  searchConsoleReadAccess?: boolean;
+  analyticsReadAccess?: boolean;
   analyticsConfigured: boolean;
   adsterraConfigured: boolean;
+}
+export interface IndexingConfiguration {
+  siteUrl: string | null;
+  configured: boolean;
+  readAccess: boolean;
+  googleConnected: boolean;
+  googleConfigured: boolean;
+}
+export interface IndexInspection {
+  id: string;
+  state: "INDEXED" | "NOT_INDEXED" | "UNKNOWN" | "ERROR";
+  checkedAt: string;
+  lastCrawlTime: string | null;
+  coverageState: string | null;
+  verdict: string | null;
+  pageFetchState: string | null;
+  robotsTxtState: string | null;
+  indexingState: string | null;
+  crawledAs: string | null;
+  googleCanonical: string | null;
+  userCanonical: string | null;
+  inspectionResultLink: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+export interface IndexingReport {
+  articleId: string;
+  title: string;
+  publishingStatus: Status;
+  url: string | null;
+  eligible: boolean;
+  canInspect: boolean;
+  blockedReason: string | null;
+  latest: IndexInspection | null;
+  lastAttempt: IndexInspection | null;
+  history: IndexInspection[];
+  configuration: IndexingConfiguration;
+  cached?: boolean;
 }

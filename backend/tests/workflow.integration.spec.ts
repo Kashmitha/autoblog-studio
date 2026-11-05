@@ -42,7 +42,7 @@ beforeAll(async () => {
   publisher = app.get(PublishingService);
   await publisher.queue.obliterate({ force: true });
   await db.$executeRawUnsafe(
-    'TRUNCATE "User", "Article", "MediaAsset", "Integration", "AutomationSettings", "FinanceEntry", "TrafficMetric", "AiUsage", "AuditLog", "WorkerHeartbeat" CASCADE',
+    'TRUNCATE "User", "Article", "MediaAsset", "Integration", "AutomationSettings", "ReportingSettings", "FinanceEntry", "TrafficMetric", "AiUsage", "AuditLog", "WorkerHeartbeat" CASCADE',
   );
   await db.user.create({
     data: {

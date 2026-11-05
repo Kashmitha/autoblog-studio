@@ -36,6 +36,7 @@ import {
 } from "./dtos";
 import { publicGet } from "../infrastructure/public-http";
 import { ReportingService } from "../application/reporting.service";
+import { SearchConsoleService } from "../application/search-console.service";
 import { env } from "../config";
 @Controller()
 @UseGuards(SessionGuard)
@@ -48,6 +49,7 @@ export class StudioController {
     private readonly ai: AiService,
     private readonly media: MediaService,
     private readonly reporting: ReportingService,
+    private readonly search: SearchConsoleService,
   ) {}
   @Get("dashboard") dashboard(@Query("month") month?: string) {
     return this.metrics.overview(month);
@@ -188,6 +190,10 @@ export class StudioController {
     };
   }
   @Get("integrations") async integrations() {
+    const [search, permissions] = await Promise.all([
+      this.search.configuration(),
+      this.google.reportingPermissions(),
+    ]);
     const google = await this.db.integration.findUnique({
       where: { provider: "google" },
       select: {
@@ -212,15 +218,23 @@ export class StudioController {
         !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
       unsplashConfigured: !!process.env.UNSPLASH_ACCESS_KEY,
       adsterraConfigured: !!process.env.ADSTERRA_API_KEY,
-      searchConsoleConfigured: !!process.env.SEARCH_CONSOLE_SITE_URL,
+      searchConsoleConfigured: search.configured,
+      searchConsoleSiteUrl: search.siteUrl,
+      searchConsoleReadAccess: permissions.searchConsole,
+      analyticsReadAccess: permissions.analytics,
       analyticsConfigured: !!process.env.GA_PROPERTY_ID,
     };
   }
   @Get("integrations/google/connect") connect(
     @Req() req: AuthRequest,
     @Query("analytics") analytics?: string,
+    @Query("searchConsole") searchConsole?: string,
   ) {
-    return this.google.connect(req.session!.id, analytics === "true");
+    return this.google.connect(
+      req.session!.id,
+      analytics === "true",
+      searchConsole === "true",
+    );
   }
   @Get("integrations/google/callback") async callback(
     @Req() req: AuthRequest,

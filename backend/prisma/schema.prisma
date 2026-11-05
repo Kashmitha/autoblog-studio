@@ -66,6 +66,7 @@ model Article {
   reports QualityReport[]
   jobs PublishJob[]
   events ArticleEvent[]
+  inspections IndexInspection[]
   @@index([status, scheduledAt])
   @@index([updatedAt])
 }
@@ -220,4 +221,34 @@ model AuditLog {
 model WorkerHeartbeat {
   id String @id
   lastSeen DateTime @default(now())
+}
+model ReportingSettings {
+  id String @id @default("owner")
+  searchConsoleSiteUrl String?
+  propertyVerifiedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+model IndexInspection {
+  id String @id @default(cuid())
+  articleId String
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  siteUrl String
+  inspectionUrl String
+  state String
+  verdict String?
+  coverageState String?
+  robotsTxtState String?
+  indexingState String?
+  pageFetchState String?
+  lastCrawlTime DateTime?
+  crawledAs String?
+  googleCanonical String?
+  userCanonical String?
+  sitemaps String[] @default([])
+  referringUrls String[] @default([])
+  inspectionResultLink String?
+  errorCode String?
+  errorMessage String?
+  checkedAt DateTime @default(now())
+  @@index([articleId, siteUrl, inspectionUrl, checkedAt])
 }

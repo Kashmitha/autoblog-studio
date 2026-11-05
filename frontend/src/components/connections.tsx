@@ -15,6 +15,7 @@ import { Integrations } from "@/lib/types";
 import { ViewProps, PageHeading, ResourceState } from "./views";
 import { useAction, useResource } from "./hooks";
 import { Badge, Field, Modal, Notice } from "./ui";
+import { SearchConsoleConnection } from "./indexing";
 export function Connections({ notify }: ViewProps) {
   const r = useResource<Integrations>("/integrations"),
     a = useAction(notify);
@@ -365,9 +366,10 @@ export function Connections({ notify }: ViewProps) {
               }
             >
               <Plug size={16} />
-              Authorize Google reporting scopes
+              Authorize Google Analytics read access
             </button>
           </section>
+          <SearchConsoleConnection notify={notify} />
           <section className="panel padded spaced">
             <h2>Local configuration checklist</h2>
             <ol className="help-list">
@@ -398,9 +400,9 @@ export function Connections({ notify }: ViewProps) {
                 backend and worker, then connect above.
               </li>
               <li>
-                For reporting, enable Search Console API and Analytics Data API;
-                set SEARCH_CONSOLE_SITE_URL and GA_PROPERTY_ID. Authorize
-                reporting scopes separately.
+                For Search Console, use the connection panel to enable its API,
+                grant read access and select your verified property. Analytics
+                is optional and uses GA_PROPERTY_ID with separate read access.
               </li>
               <li>
                 Never post secrets in chat or commit .env. Detailed instructions

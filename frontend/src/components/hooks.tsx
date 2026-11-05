@@ -25,7 +25,11 @@ export function useResource<T>(path: string) {
       void reload();
     };
     window.addEventListener("blogger-status-synced", synced);
-    return () => window.removeEventListener("blogger-status-synced", synced);
+    window.addEventListener("reporting-config-changed", synced);
+    return () => {
+      window.removeEventListener("blogger-status-synced", synced);
+      window.removeEventListener("reporting-config-changed", synced);
+    };
   }, [reload]);
   return { data, setData, error, loading, reload };
 }

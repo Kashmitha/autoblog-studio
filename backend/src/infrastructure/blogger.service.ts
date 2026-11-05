@@ -19,7 +19,7 @@ export class GoogleService {
       process.env.GOOGLE_REDIRECT_URI,
     );
   }
-  async connect(sessionId: string, analytics = false) {
+  async connect(sessionId: string, analytics = false, searchConsole = false) {
     const client = this.oauth();
     const pkce = await client.generateCodeVerifierAsync();
     const state = randomBytes(32).toString("hex");
@@ -35,16 +35,17 @@ export class GoogleService {
       url: client.generateAuthUrl({
         access_type: "offline",
         prompt: "consent",
+        include_granted_scopes: true,
         state,
         code_challenge: pkce.codeChallenge,
         code_challenge_method: "S256" as never,
         scope: [
           "https://www.googleapis.com/auth/blogger",
           ...(analytics
-            ? [
-                "https://www.googleapis.com/auth/webmasters.readonly",
-                "https://www.googleapis.com/auth/analytics.readonly",
-              ]
+            ? ["https://www.googleapis.com/auth/analytics.readonly"]
+            : []),
+          ...(searchConsole
+            ? ["https://www.googleapis.com/auth/webmasters.readonly"]
             : []),
         ],
       }),
@@ -67,6 +68,29 @@ export class GoogleService {
       throw new BadRequestException(
         "Google did not return a refresh token. Reconnect with consent.",
       );
+    const previous = await this.db.integration.findUnique({
+      where: { provider: "google" },
+    });
+    if (previous?.blogId) {
+      // An incremental reporting grant must not silently replace the Blogger
+      // connection with an unrelated account while retaining its pinned blog.
+      client.setCredentials(merged);
+      const { data } = await blogger({
+        version: "v3",
+        auth: client,
+      }).blogs.listByUser(
+        { userId: "self", role: ["ADMIN"], fetchUserInfo: true },
+        { timeout: 20000 },
+      );
+      const owned =
+        data.blogUserInfos?.flatMap(({ blog }) => (blog?.id ? [blog] : [])) ??
+        data.items ??
+        [];
+      if (!owned.some((b) => b.id === previous.blogId))
+        throw new BadRequestException(
+          "Use the same Google account that owns your connected Blogger blog. Your existing connection has been kept.",
+        );
+    }
     await this.db.integration.upsert({
       where: { provider: "google" },
       create: {
@@ -101,8 +125,13 @@ export class GoogleService {
     );
     client.setCredentials(tokens);
     await client.getAccessToken();
-    await this.db.integration.update({
-      where: { provider: "google" },
+    await this.db.integration.updateMany({
+      // A refresh started before a new OAuth grant must not overwrite that
+      // newer account/permission choice when its network request finishes.
+      where: {
+        provider: "google",
+        encryptedTokens: integration.encryptedTokens,
+      },
       data: {
         encryptedTokens: encrypt(
           JSON.stringify({ ...tokens, ...client.credentials }),
@@ -111,6 +140,33 @@ export class GoogleService {
       },
     });
     return client;
+  }
+  async reportingPermissions() {
+    const integration = await this.db.integration.findUnique({
+      where: { provider: "google" },
+    });
+    if (!integration) return { searchConsole: false, analytics: false };
+    try {
+      const tokens = JSON.parse(
+        decrypt(
+          integration.encryptedTokens,
+          requireSecret("TOKEN_ENCRYPTION_KEY"),
+        ),
+      );
+      const scopes = new Set(
+        typeof tokens.scope === "string" ? tokens.scope.split(/\s+/) : [],
+      );
+      return {
+        searchConsole:
+          scopes.has("https://www.googleapis.com/auth/webmasters.readonly") ||
+          scopes.has("https://www.googleapis.com/auth/webmasters"),
+        analytics:
+          scopes.has("https://www.googleapis.com/auth/analytics.readonly") ||
+          scopes.has("https://www.googleapis.com/auth/analytics"),
+      };
+    } catch {
+      return { searchConsole: false, analytics: false };
+    }
   }
   async blogs() {
     const auth = await this.client();
