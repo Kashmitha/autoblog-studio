@@ -33,6 +33,21 @@ test("Blogger scheduling uses Sri Lanka time and shows confirmed remote status w
   let requested: { at?: string } | undefined;
   let remoteLive = false;
   await page.route("**/api/**", async (route) => {
+    if (
+      new URL(route.request().url()).pathname ===
+      "/api/reports/search-console/refresh-due"
+    )
+      return route.fulfill({
+        json: { skipped: true, sync: null, imported: 0 },
+      });
+    if (
+      new URL(route.request().url()).pathname ===
+      "/api/seo/indexing/refresh-due"
+    )
+      return route.fulfill({
+        status: 201,
+        json: { results: [], remaining: 0 },
+      });
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/auth/session")
       return route.fulfill({
@@ -57,6 +72,23 @@ test("Blogger scheduling uses Sri Lanka time and shows confirmed remote status w
         },
       });
     if (path === "/api/media") return route.fulfill({ json: [] });
+    if (path === "/api/seo/articles/cloud-ui-fixture/fetch-diagnostics")
+      return route.fulfill({
+        json: {
+          article: {
+            id: article.id,
+            title: article.title,
+            publishedUrl: article.publishedUrl,
+          },
+          eligible: true,
+          canCheck: false,
+          blockedReason: "Select the owned blog.",
+          latest: null,
+          history: [],
+          google: null,
+          nextCheckAt: null,
+        },
+      });
     if (path === "/api/seo/articles/cloud-ui-fixture/indexing")
       return route.fulfill({
         json: {

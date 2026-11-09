@@ -25,6 +25,9 @@ export class SearchConsoleController {
   @Get("indexing") overview() {
     return this.search.overview();
   }
+  @Post("indexing/refresh-due") refreshDue() {
+    return this.search.refreshDue();
+  }
   @Get("articles/:id/indexing") report(@Param("id") id: string) {
     return this.search.report(id);
   }

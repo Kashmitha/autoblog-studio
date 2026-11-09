@@ -1,5 +1,7 @@
 "use client";
 import { IndexingOverview } from "./indexing";
+import { ArticlePerformance } from "./performance";
+import { TrafficSync } from "./traffic-sync";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -448,6 +450,8 @@ export function Traffic({ notify, integrations }: ViewProps) {
         description="Connect authorized reporting or import your real traffic records."
       />
       <IndexingOverview notify={notify} />
+      <ArticlePerformance />
+      <TrafficSync notify={notify} />
       <ResourceState {...r} />
       {d && (
         <div className="metric-grid">
@@ -517,12 +521,21 @@ export function Traffic({ notify, integrations }: ViewProps) {
               }
               onClick={() =>
                 a.run(async () => {
-                  const x = await post<{ imported: number; note: string }>(
-                    "/integrations/search-console/sync",
-                    date,
-                  );
-                  notify(`${x.imported} search rows imported. ${x.note}`);
-                  await r.reload();
+                  try {
+                    const x = await post<{
+                      imported: number;
+                      note: string;
+                      sync?: { state: string };
+                    }>("/integrations/search-console/sync", date);
+                    notify(
+                      x.sync?.state === "RUNNING"
+                        ? x.note
+                        : `${x.imported} search rows imported. ${x.note}`,
+                    );
+                    await r.reload();
+                  } finally {
+                    window.dispatchEvent(new Event("traffic-records-changed"));
+                  }
                 })
               }
             >
@@ -543,6 +556,7 @@ export function Traffic({ notify, integrations }: ViewProps) {
                     date,
                   );
                   notify(`${x.imported} Analytics rows imported.`);
+                  window.dispatchEvent(new Event("traffic-records-changed"));
                   await r.reload();
                 })
               }
@@ -579,6 +593,7 @@ export function Traffic({ notify, integrations }: ViewProps) {
                   csv,
                 });
                 notify(`${x.imported} traffic rows imported.`);
+                window.dispatchEvent(new Event("traffic-records-changed"));
                 await r.reload();
               }, "Traffic updated.")
             }
@@ -650,49 +665,6 @@ export function Traffic({ notify, integrations }: ViewProps) {
           </Notice>
         </section>
       </div>
-      {d && (
-        <section className="panel spaced">
-          <div className="panel-heading">
-            <h2>Article performance</h2>
-            <span className="small subtle">
-              Selected reporting sources only
-            </span>
-          </div>
-          {d.topArticles.length ? (
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Article URL</th>
-                    <th>Pageviews</th>
-                    <th>Search clicks</th>
-                    <th>Impressions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.topArticles.map((t) => (
-                    <tr key={t.url}>
-                      <td>
-                        <a href={t.url} target="_blank" rel="noreferrer">
-                          {t.url}
-                        </a>
-                      </td>
-                      <td>{t.pageviews ?? "—"}</td>
-                      <td>{t.clicks ?? "—"}</td>
-                      <td>{t.impressions ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty
-              title="Every readership starts somewhere"
-              description="Import URL-level metrics or connect reporting to see your most useful articles here."
-            />
-          )}
-        </section>
-      )}
     </>
   );
 }

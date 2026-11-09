@@ -44,6 +44,8 @@ import {
 import type { Notify } from "./studio";
 import { ArticleRows, Badge, Empty, Field, Modal, Notice } from "./ui";
 import { useAction, useResource } from "./hooks";
+import { IndexingOverview } from "./indexing";
+import { ContentBacklog } from "./content-backlog";
 export { Connections } from "./connections";
 export { Finance, Traffic, Jobs } from "./finance-views";
 export { MediaLibrary, Help, Preferences } from "./media-help";
@@ -203,6 +205,7 @@ export function Overview({ notify, integrations }: ViewProps) {
               tint="orange"
             />
           </div>
+          <IndexingOverview notify={notify} compact />
           <div className="dashboard-main-grid">
             <section className="panel performance-panel">
               <div className="panel-heading">
@@ -731,8 +734,7 @@ export const niches = [
   "Beginner programming",
 ];
 export function Planner({ notify, integrations }: ViewProps) {
-  const r = useResource<Article[]>("/articles"),
-    a = useAction(notify),
+  const a = useAction(notify),
     router = useRouter();
   const [niche, setNiche] = useState("DevOps"),
     [title, setTitle] = useState(""),
@@ -835,25 +837,7 @@ export function Planner({ notify, integrations }: ViewProps) {
           ))}
         </section>
       </div>
-      <section className="panel spaced">
-        <div className="panel-heading">
-          <h2>Your planned articles</h2>
-          <span className="subtle small">
-            Duplication checked during review
-          </span>
-        </div>
-        <ResourceState {...r} />
-        {r.data?.some((a) => a.status === "PLANNED") ? (
-          <ArticleRows
-            articles={r.data.filter((a) => a.status === "PLANNED")}
-          />
-        ) : (
-          <Empty
-            title="Your topic plan starts here"
-            description="Save focused questions. Research each one before generating or writing a draft."
-          />
-        )}
-      </section>
+      <ContentBacklog notify={notify} />
     </>
   );
 }

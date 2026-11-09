@@ -1726,6 +1726,31 @@ tr:last-child td {
     opacity: 0.4;
   }
 }
+.backlog-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+}
+.backlog-item {
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.backlog-item h3 {
+  margin: 12px 0;
+}
+.backlog-item details {
+  margin: 16px 0;
+}
+.backlog-item form {
+  margin-top: 16px;
+}
+@media (max-width: 700px) {
+  .backlog-filters {
+    grid-template-columns: 1fr;
+  }
+}
 .skip-link {
   position: fixed;
   top: -60px;
@@ -2334,4 +2359,108 @@ tr:last-child td {
     animation: none !important;
     transition: none !important;
   }
+}
+.indexing-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.indexing-summary > div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.indexing-summary dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.indexing-summary dd {
+  margin: 6px 0 0;
+  font-size: 25px;
+  font-weight: 650;
+}
+.indexing-follow-up {
+  margin: 14px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+}
+.indexing-follow-up p {
+  margin: 5px 0;
+}
+@media (max-width: 650px) {
+  .indexing-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.performance-controls .field {
+  flex: 1 1 200px;
+  max-width: 360px;
+}
+.article-performance-table {
+  min-width: 950px;
+}
+.article-performance-table td:first-child {
+  min-width: 280px;
+  max-width: 420px;
+  white-space: normal;
+}
+.article-performance-table td > small {
+  display: block;
+  color: var(--subtle);
+  margin-top: 5px;
+}
+@media (max-width: 700px) {
+  .article-performance-table {
+    min-width: 0;
+    display: block;
+  }
+  .article-performance-table thead {
+    display: none;
+  }
+  .article-performance-table tbody {
+    display: block;
+  }
+  .article-performance-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-bottom: 1px solid var(--line);
+    padding: 12px 0;
+  }
+  .article-performance-table td {
+    display: block;
+    padding: 10px;
+    border: 0;
+    white-space: normal;
+  }
+  .article-performance-table td:first-child {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: none;
+  }
+  .article-performance-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--subtle);
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+}
+.diagnostic-profile {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.diagnostic-profile summary {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.diagnostic-chain {
+  margin: 12px 0;
+  padding-left: 22px;
+}
+.diagnostic-chain li {
+  margin: 10px 0;
+}
+.diagnostic-chain p {
+  margin: 3px 0;
 }

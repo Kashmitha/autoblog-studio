@@ -26,11 +26,27 @@ export function useResource<T>(path: string) {
     };
     window.addEventListener("blogger-status-synced", synced);
     window.addEventListener("reporting-config-changed", synced);
+    if (path.startsWith("/seo/"))
+      window.addEventListener("indexing-status-synced", synced);
+    if (
+      path.startsWith("/traffic/articles") ||
+      path.startsWith("/reports/search-console") ||
+      path.startsWith("/dashboard")
+    )
+      window.addEventListener("traffic-records-changed", synced);
     return () => {
       window.removeEventListener("blogger-status-synced", synced);
       window.removeEventListener("reporting-config-changed", synced);
+      if (path.startsWith("/seo/"))
+        window.removeEventListener("indexing-status-synced", synced);
+      if (
+        path.startsWith("/traffic/articles") ||
+        path.startsWith("/reports/search-console") ||
+        path.startsWith("/dashboard")
+      )
+        window.removeEventListener("traffic-records-changed", synced);
     };
-  }, [reload]);
+  }, [reload, path]);
   return { data, setData, error, loading, reload };
 }
 export function useAction(notify: Notify) {

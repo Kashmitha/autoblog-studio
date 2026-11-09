@@ -12,6 +12,9 @@ import { HealthController } from "./api/health.controller";
 import { MediaController } from "./api/media.controller";
 import { CloudPublishingController } from "./api/cloud-publishing.controller";
 import { SearchConsoleController } from "./api/search-console.controller";
+import { PerformanceController } from "./api/performance.controller";
+import { TrafficSyncController } from "./api/traffic-sync.controller";
+import { FetchDiagnosticsController } from "./api/fetch-diagnostics.controller";
 @Module({
   imports: [
     DatabaseModule,
@@ -28,6 +31,9 @@ import { SearchConsoleController } from "./api/search-console.controller";
     MediaController,
     CloudPublishingController,
     SearchConsoleController,
+    PerformanceController,
+    TrafficSyncController,
+    FetchDiagnosticsController,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -38,6 +38,9 @@ export class SafeExceptionFilter implements ExceptionFilter {
         requestId: id,
         status,
         errorType: error instanceof Error ? error.name : "Unknown",
+        ...(error instanceof Prisma.PrismaClientKnownRequestError
+          ? { errorCode: error.code }
+          : {}),
       }),
     );
     host

@@ -66,6 +66,21 @@ export class ArticleDto {
   @IsUrl({ protocols: ["https"], require_protocol: true })
   canonicalUrl?: string;
 }
+export class PlanningDto {
+  @ApiProperty({ type: Number })
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  backlogPriority!: number;
+  @ApiProperty({ type: String })
+  @IsString()
+  @MaxLength(3000)
+  planningNotes!: string;
+  @ApiProperty({ type: Number })
+  @IsInt()
+  @Min(1)
+  planningVersion!: number;
+}
 export class SourceDto {
   @ApiProperty({ required: true, type: String })
   @IsUrl({ protocols: ["https"], require_protocol: true })

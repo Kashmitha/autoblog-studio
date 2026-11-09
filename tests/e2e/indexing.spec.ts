@@ -10,7 +10,9 @@ async function installFixture(page: Page, configured = true) {
     googleConnected: true,
     googleConfigured: true,
   };
-  let refreshes = 0;
+  let refreshes = 0,
+    automaticChecks = 0,
+    diagnosticChecks = 0;
   const article = {
     id,
     title: "Published indexing interface fixture",
@@ -43,7 +45,7 @@ async function installFixture(page: Page, configured = true) {
     checkedAt: "2026-11-05T11:00:00.000Z",
     lastCrawlTime: "2026-11-04T15:49:13.000Z" as string | null,
     pageFetchState: "REDIRECT_ERROR",
-    indexingState: null as string | null,
+    indexingState: "INDEXING_STATE_UNSPECIFIED" as string | null,
     robotsTxtState: "ALLOWED",
     crawledAs: "MOBILE",
     googleCanonical: null as string | null,
@@ -69,6 +71,90 @@ async function installFixture(page: Page, configured = true) {
     latest: configuration.configured ? latest : null,
     lastAttempt: configuration.configured ? lastAttempt : null,
     history: configuration.configured ? history : [],
+    followUp: {
+      category: latest.state === "INDEXED" ? "indexed" : "attention",
+      title:
+        latest.state === "INDEXED"
+          ? "Indexing confirmed"
+          : "Investigate the recorded redirect error",
+      action:
+        latest.state === "INDEXED"
+          ? "Google reports this URL indexed."
+          : "Open Search Console for this URL and compare the live test with the recorded crawl.",
+      sameCrawl: false,
+    },
+    nextAutomaticCheckAt: "2026-11-06T11:00:00Z",
+  });
+  const diagnosticResult = {
+    outcome: "NO_ISSUE_REPRODUCED",
+    checkedAt: "2026-11-06T14:00:00Z",
+    url: article.publishedUrl,
+    scriptsExecuted: false,
+    limitation:
+      "These are Studio HTTP requests, not Googlebot. A successful fetch does not confirm indexing.",
+    profiles: [
+      {
+        name: "Desktop",
+        finalUrl: article.publishedUrl,
+        status: 200,
+        error: null,
+        findings: [],
+        hops: [{ url: article.publishedUrl, status: 200, location: null }],
+        metadata: {
+          canonicals: [article.publishedUrl],
+          robots: [],
+          metaRefresh: [],
+          refreshHeader: null,
+          noindex: false,
+        },
+      },
+      {
+        name: "Mobile",
+        finalUrl: article.publishedUrl + "?m=1",
+        status: 200,
+        error: null,
+        findings: [],
+        hops: [
+          {
+            url: article.publishedUrl,
+            status: 302,
+            location: article.publishedUrl + "?m=1",
+          },
+          { url: article.publishedUrl + "?m=1", status: 200, location: null },
+        ],
+        metadata: {
+          canonicals: [article.publishedUrl],
+          robots: [],
+          metaRefresh: [],
+          refreshHeader: null,
+          noindex: false,
+        },
+      },
+    ],
+  };
+  let diagnosticRun: {
+    id: string;
+    state: string;
+    startedAt: string;
+    finishedAt: string;
+    errorMessage: null;
+    result: typeof diagnosticResult;
+  } | null = null;
+  const diagnosticReport = () => ({
+    article: { id, title: article.title, publishedUrl: article.publishedUrl },
+    eligible: true,
+    canCheck: true,
+    blockedReason: null,
+    latest: diagnosticRun,
+    history: diagnosticRun ? [diagnosticRun] : [],
+    google: {
+      state: latest.state,
+      coverageState: latest.coverageState,
+      lastCrawlTime: latest.lastCrawlTime,
+      checkedAt: latest.checkedAt,
+      inspectionResultLink: latest.inspectionResultLink,
+    },
+    nextCheckAt: null,
   });
   const dashboard = {
     month: "2026-11",
@@ -133,11 +219,73 @@ async function installFixture(page: Page, configured = true) {
       });
     if (path === "/api/blogger/sync")
       return route.fulfill({ json: { results: [] } });
+    if (path === "/api/reports/search-console/refresh-due")
+      return route.fulfill({
+        json: { skipped: true, sync: null, imported: 0 },
+      });
+    if (path === "/api/reports/search-console/status")
+      return route.fulfill({
+        json: {
+          configuration,
+          history: [],
+          lastSuccess: null,
+          lastAttempt: null,
+          nextAutomaticSyncAt: null,
+        },
+      });
+    if (path === "/api/seo/indexing/refresh-due") {
+      automaticChecks++;
+      return route.fulfill({
+        status: 201,
+        json: { results: [], remaining: 0 },
+      });
+    }
+    if (path === "/api/reminders") return route.fulfill({ json: [] });
     if (path === "/api/media") return route.fulfill({ json: [] });
     if (path === "/api/articles/" + id) return route.fulfill({ json: article });
     if (path === "/api/dashboard") return route.fulfill({ json: dashboard });
+    if (path === "/api/traffic/articles")
+      return route.fulfill({
+        json: {
+          days: Number(
+            new URL(route.request().url()).searchParams.get("days") || 28,
+          ),
+          current: { start: "2026-10-09", end: "2026-11-05" },
+          previous: { start: "2026-09-11", end: "2026-10-08" },
+          dateConvention: "Dates use source labels.",
+          note: "No simulated metrics are saved.",
+          totalPublished: 0,
+          truncated: false,
+          articles: [],
+        },
+      });
     if (path === "/api/seo/articles/" + id + "/indexing")
       return route.fulfill({ json: report() });
+    if (path === "/api/seo/articles/" + id + "/fetch-diagnostics")
+      return route.fulfill({ json: diagnosticReport() });
+    if (path === "/api/seo/articles/" + id + "/fetch-diagnostics/run") {
+      diagnosticChecks++;
+      diagnosticRun = {
+        id: "trace-fixture",
+        state: "COMPLETED",
+        startedAt: "2026-11-06T14:00:00Z",
+        finishedAt: "2026-11-06T14:00:02Z",
+        errorMessage: null,
+        result: diagnosticResult,
+      };
+      return route.fulfill({
+        status: 201,
+        json: { ...diagnosticReport(), cached: diagnosticChecks > 1 },
+      });
+    }
+    if (path === "/api/seo/articles/" + id + "/fetch-diagnostics/export")
+      return route.fulfill({
+        json: diagnosticReport(),
+        headers: {
+          "Content-Disposition":
+            'attachment; filename="article-fetch-diagnostics.json"',
+        },
+      });
     if (path === "/api/seo/articles/" + id + "/inspect") {
       refreshes++;
       if (refreshes === 1) {
@@ -190,6 +338,27 @@ async function installFixture(page: Page, configured = true) {
             report(),
             {
               ...report(),
+              articleId: "discovered-ui-fixture",
+              title: "Another published article awaiting Google's crawl",
+              url: site + "second-post",
+              latest: {
+                ...latest,
+                id: "discovered",
+                state: "NOT_INDEXED",
+                coverageState: "Discovered - currently not indexed",
+                pageFetchState: "PAGE_FETCH_STATE_UNSPECIFIED",
+                lastCrawlTime: null,
+              },
+              followUp: {
+                category: "waiting",
+                title: "Waiting for Google's crawl",
+                action:
+                  "Google has discovered this URL but reports no completed crawl yet.",
+                sameCrawl: false,
+              },
+            },
+            {
+              ...report(),
               articleId: "future-ui-fixture",
               title: "Future scheduled article fixture",
               publishingStatus: "SCHEDULED",
@@ -209,6 +378,12 @@ async function installFixture(page: Page, configured = true) {
     id,
     get refreshes() {
       return refreshes;
+    },
+    get automaticChecks() {
+      return automaticChecks;
+    },
+    get diagnosticChecks() {
+      return diagnosticChecks;
     },
   };
 }
@@ -251,6 +426,140 @@ test("indexing reports distinguish old crawls from new checks and retain the las
   await panel.screenshot({
     path: ".local/screenshots/indexing-history-fixture-mobile.png",
     animations: "disabled",
+  });
+});
+
+test("live fetch diagnostics show the redirect chain while preserving Google’s separate failed crawl", async ({
+  page,
+}) => {
+  const fixture = await installFixture(page);
+  await page.goto("/articles/" + fixture.id);
+  const diagnostics = page.getByRole("region", {
+    name: "Live fetch diagnostics",
+    exact: true,
+  });
+  await expect(
+    diagnostics.getByRole("button", {
+      name: "Check live redirects",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(fixture.diagnosticChecks).toBe(0);
+  await diagnostics
+    .getByRole("button", { name: "Check live redirects", exact: true })
+    .click();
+  await expect(
+    diagnostics.getByText("No issue reproduced in these requests", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const google = page.getByRole("region", {
+    name: "Google indexing",
+    exact: true,
+  });
+  await expect(google.getByText("not indexed", { exact: true })).toBeVisible();
+  expect(fixture.refreshes).toBe(0);
+  await diagnostics
+    .locator("summary")
+    .filter({ hasText: "Mobile · HTTP 200" })
+    .click();
+  await expect(
+    diagnostics.getByText("HTTP 302", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    diagnostics
+      .locator("details[open]")
+      .getByText("Not detected in fetched HTML/headers", {
+        exact: true,
+      }),
+  ).toBeVisible();
+  await expect(
+    diagnostics.getByRole("link", { name: "Download diagnostic report" }),
+  ).toHaveAttribute(
+    "href",
+    "/api/seo/articles/" + fixture.id + "/fetch-diagnostics/export",
+  );
+  await diagnostics
+    .getByRole("button", { name: "Check live redirects", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Recent diagnostic reused",
+  );
+  expect(fixture.diagnosticChecks).toBe(2);
+  expect(fixture.refreshes).toBe(0);
+  await diagnostics
+    .getByText("Next step in Google Search Console", { exact: true })
+    .click();
+  await expect(
+    diagnostics.getByText("TEST LIVE URL", { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await diagnostics.screenshot({
+    path: ".local/screenshots/fetch-diagnostics-fixture-mobile.png",
+  });
+});
+
+test("daily follow-up identifies exact posts, filters waiting versus access issues and never requests indexing", async ({
+  page,
+}) => {
+  const fixture = await installFixture(page);
+  await page.goto("/");
+  const panel = page.getByRole("region", {
+    name: "Publishing follow-up",
+    exact: true,
+  });
+  await expect(
+    panel.getByRole("heading", { name: "Publishing follow-up", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByText("Published indexing interface fixture", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("link", {
+      name: "https://fixture.example/post",
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect.poll(() => fixture.automaticChecks).toBe(1);
+  expect(fixture.refreshes).toBe(0);
+  await page.goto("/analytics");
+  const overview = page.getByRole("region", {
+    name: "Publishing follow-up",
+    exact: true,
+  });
+  await overview.getByLabel("Show indexing reports").selectOption("waiting");
+  await expect(overview.locator(".indexing-row")).toHaveCount(1);
+  await expect(
+    overview.getByText("Another published article awaiting Google's crawl", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await overview.getByLabel("Show indexing reports").selectOption("attention");
+  await expect(overview.locator(".indexing-row")).toHaveCount(1);
+  await expect(
+    overview.getByText("Investigate the recorded redirect error", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await overview
+    .getByRole("button", { name: "Check reports due", exact: true })
+    .click();
+  await expect.poll(() => fixture.automaticChecks).toBe(3);
+  expect(fixture.refreshes).toBe(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: ".local/screenshots/daily-follow-up-fixture-mobile.png",
+    fullPage: true,
   });
 });
 

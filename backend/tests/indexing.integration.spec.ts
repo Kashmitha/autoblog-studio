@@ -246,14 +246,12 @@ test("a later indexed result retains the earlier redirect failure in history", a
   expect(r.body.latest.googleCanonical).toBe(url);
 });
 test("successful fetch and indexing permission alone do not assert indexing", async () => {
-  jest
-    .spyOn(adapter, "inspect")
-    .mockResolvedValue({
-      indexStatusResult: {
-        pageFetchState: "SUCCESSFUL",
-        indexingState: "INDEXING_ALLOWED",
-      },
-    });
+  jest.spyOn(adapter, "inspect").mockResolvedValue({
+    indexStatusResult: {
+      pageFetchState: "SUCCESSFUL",
+      indexingState: "INDEXING_ALLOWED",
+    },
+  });
   const r = await inspect().expect(201);
   expect(r.body.latest.state).toBe("UNKNOWN");
   expect(r.body.latest.lastCrawlTime).toBeNull();
@@ -262,12 +260,10 @@ test("quota failures preserve the prior result, record a separate failed check a
   jest.spyOn(adapter, "inspect").mockResolvedValue(indexed());
   await inspect().expect(201);
   await age();
-  jest
-    .spyOn(adapter, "inspect")
-    .mockRejectedValue({
-      response: { status: 429 },
-      message: "SECRET_PROVIDER_PAYLOAD",
-    });
+  jest.spyOn(adapter, "inspect").mockRejectedValue({
+    response: { status: 429 },
+    message: "SECRET_PROVIDER_PAYLOAD",
+  });
   const r = await inspect().expect(201);
   expect(r.body.latest.state).toBe("INDEXED");
   expect(r.body.lastAttempt).toMatchObject({
@@ -348,4 +344,123 @@ test("missing inspection payloads do not replace a prior known result", async ()
   const r = await inspect().expect(201);
   expect(r.body.latest.state).toBe("INDEXED");
   expect(r.body.lastAttempt.state).toBe("ERROR");
+});
+
+const refreshDue = () => post("/seo/indexing/refresh-due");
+test("daily refresh requires session, origin and CSRF", async () => {
+  await request(app.getHttpServer())
+    .post("/api/seo/indexing/refresh-due")
+    .set("Origin", origin)
+    .send({})
+    .expect(401);
+  await agent
+    .post("/api/seo/indexing/refresh-due")
+    .set("Origin", origin)
+    .send({})
+    .expect(403);
+  await agent
+    .post("/api/seo/indexing/refresh-due")
+    .set("Origin", "https://untrusted.example")
+    .set("X-CSRF-Token", csrf)
+    .send({})
+    .expect(403);
+  expect(adapter.inspect).not.toHaveBeenCalled();
+});
+test("daily checks coalesce across concurrent tabs, reuse recent manual results and preserve publication data", async () => {
+  const before = await db.article.findUniqueOrThrow({ where: { id } });
+  const replies = await Promise.all([
+    refreshDue().expect(201),
+    refreshDue().expect(201),
+  ]);
+  expect(adapter.inspect).toHaveBeenCalledTimes(1);
+  expect(
+    replies.flatMap((r) => r.body.results).filter((r) => r.checked),
+  ).toHaveLength(1);
+  await age();
+  await refreshDue().expect(201);
+  expect(adapter.inspect).toHaveBeenCalledTimes(1);
+  await db.indexInspection.updateMany({
+    data: { checkedAt: new Date(Date.now() - 86400001) },
+  });
+  const refreshed = await refreshDue().expect(201);
+  expect(refreshed.body.results[0].checked).toBe(true);
+  expect(adapter.inspect).toHaveBeenCalledTimes(2);
+  const report = await agent.get("/api/seo/articles/" + id + "/indexing");
+  expect(report.body.followUp.sameCrawl).toBe(true);
+  expect(new Date(report.body.nextAutomaticCheckAt).getTime()).toBe(
+    new Date(report.body.lastAttempt.checkedAt).getTime() + 86400000,
+  );
+  expect(await db.article.findUniqueOrThrow({ where: { id } })).toEqual(before);
+  expect(await db.publishJob.count()).toBe(0);
+  expect(
+    (await db.automationSettings.findUniqueOrThrow({ where: { id: "owner" } }))
+      .paused,
+  ).toBe(true);
+});
+test("daily checks skip scheduled, outside-property and unconfigured posts", async () => {
+  await db.article.update({ where: { id }, data: { status: "SCHEDULED" } });
+  expect((await refreshDue()).body.results).toHaveLength(0);
+  await db.article.update({
+    where: { id },
+    data: { status: "PUBLISHED", publishedUrl: "https://other.example/post" },
+  });
+  expect((await refreshDue()).body.results).toHaveLength(0);
+  await db.article.update({ where: { id }, data: { publishedUrl: url } });
+  await db.reportingSettings.deleteMany();
+  expect((await refreshDue()).body.results).toHaveLength(0);
+  expect(adapter.inspect).not.toHaveBeenCalled();
+});
+test("daily checks bound each batch and process older due reports before newer ones", async () => {
+  const extra = await Promise.all(
+    Array.from({ length: 4 }, (_, i) =>
+      db.article.create({
+        data: {
+          title: "Due fixture " + i,
+          slug: "due-fixture-" + i,
+          status: "PUBLISHED",
+          publishedUrl: site + "due-" + i,
+        },
+      }),
+    ),
+  );
+  await db.indexInspection.create({
+    data: {
+      articleId: id,
+      siteUrl: site,
+      inspectionUrl: url,
+      state: "NOT_INDEXED",
+      checkedAt: new Date(Date.now() - 2 * 86400000),
+    },
+  });
+  const first = await refreshDue().expect(201);
+  expect(first.body.results).toHaveLength(3);
+  expect(first.body.remaining).toBe(2);
+  expect(adapter.inspect).toHaveBeenCalledTimes(3);
+  expect(adapter.inspect).not.toHaveBeenCalledWith(url, site);
+  await refreshDue().expect(201);
+  expect(adapter.inspect).toHaveBeenCalledTimes(5);
+  expect(
+    await db.indexInspection.count({
+      where: { articleId: { in: extra.map((a) => a.id) } },
+    }),
+  ).toBe(4);
+});
+test("daily failures retain the confirmed verdict, stop the batch and back off for an hour", async () => {
+  jest.spyOn(adapter, "inspect").mockResolvedValue(indexed());
+  await inspect().expect(201);
+  await db.indexInspection.updateMany({
+    data: { checkedAt: new Date(Date.now() - 2 * 86400000) },
+  });
+  jest
+    .spyOn(adapter, "inspect")
+    .mockRejectedValue({ response: { status: 429 }, message: "SECRET" });
+  const failed = await refreshDue().expect(201);
+  expect(failed.body.results[0].error).toContain("quota");
+  expect(JSON.stringify(failed.body)).not.toContain("SECRET");
+  await age();
+  await refreshDue().expect(201);
+  expect(adapter.inspect).toHaveBeenCalledTimes(2);
+  const report = await agent.get("/api/seo/articles/" + id + "/indexing");
+  expect(report.body.latest.state).toBe("INDEXED");
+  expect(report.body.lastAttempt.state).toBe("ERROR");
 });

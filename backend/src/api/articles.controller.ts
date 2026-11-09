@@ -10,11 +10,28 @@ import {
 } from "@nestjs/common";
 import { ArticlesService } from "../application/articles.service";
 import { SessionGuard } from "./auth";
+import { ContentPlanningService } from "../application/content-planning.service";
+import { PlanningDto } from "./dtos";
 import { ArticleDto, AttachDto, SourceDto, TransitionDto } from "./dtos";
 @Controller("articles")
 @UseGuards(SessionGuard)
 export class ArticlesController {
-  constructor(private readonly articles: ArticlesService) {}
+  constructor(
+    private readonly articles: ArticlesService,
+    private readonly planning: ContentPlanningService,
+  ) {}
+  @Get("backlog") backlog() {
+    return this.planning.backlog();
+  }
+  @Patch(":id/planning") planningUpdate(
+    @Param("id") id: string,
+    @Body() d: PlanningDto,
+  ) {
+    return this.planning.update(id, d);
+  }
+  @Get(":id/internal-links") links(@Param("id") id: string) {
+    return this.planning.links(id);
+  }
   @Get() list() {
     return this.articles.list();
   }

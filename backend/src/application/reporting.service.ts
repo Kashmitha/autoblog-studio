@@ -4,7 +4,8 @@ import { analyticsdata } from "googleapis/build/src/apis/analyticsdata";
 import { GoogleService } from "../infrastructure/blogger.service";
 import { MetricsService } from "./metrics.service";
 import { SearchConsoleService } from "./search-console.service";
-import { inspectionError } from "../domain/indexing";
+import { inspectionError, urlInProperty } from "../domain/indexing";
+import { ReportReadError, reportingRange } from "../domain/reporting";
 @Injectable()
 export class ReportingService {
   constructor(
@@ -13,30 +14,35 @@ export class ReportingService {
     private readonly search: SearchConsoleService,
   ) {}
   private dates(start: string, end: string) {
-    const s = new Date(start),
-      e = new Date(end);
-    if (
-      !Number.isFinite(s.getTime()) ||
-      !Number.isFinite(e.getTime()) ||
-      s > e ||
-      e.getTime() - s.getTime() > 93 * 86400000
-    )
+    if (!reportingRange(start, end))
       throw new BadRequestException("Choose a date range of up to 93 days.");
     return { start: start.slice(0, 10), end: end.slice(0, 10) };
   }
-  async searchConsole(start: string, end: string) {
+  async searchConsole(start: string, end: string, expectedProperty?: string) {
     const d = this.dates(start, end),
       siteUrl = await this.search.property();
     if (!siteUrl)
       throw new BadRequestException(
         "Select your verified Search Console property in Blog connections, enable its API and connect read access.",
       );
+    if (expectedProperty && siteUrl !== expectedProperty)
+      throw new ReportReadError(
+        "PROPERTY_CHANGED",
+        "The selected property changed. Reload before importing traffic.",
+      );
     if (!(await this.google.reportingPermissions()).searchConsole)
       throw new BadRequestException(
         "Connect Search Console read access in Blog connections before importing traffic.",
       );
     const api = webmasters({ version: "v3", auth: await this.google.client() });
-    let imported = 0;
+    const rows: {
+      date: string;
+      url: string;
+      clicks?: number;
+      impressions?: number;
+    }[] = [];
+    let completed = false;
+    let received = 0;
     for (let offset = 0; offset < 100000; offset += 25000) {
       const r = await api.searchanalytics
         .query(
@@ -50,14 +56,21 @@ export class ReportingService {
               startRow: offset,
             },
           },
-          { timeout: 30000, retry: false },
+          { timeout: 20000, retry: false },
         )
         .catch((error) => {
-          throw new BadRequestException(inspectionError(error).errorMessage);
+          const safe = inspectionError(error);
+          throw new ReportReadError(safe.errorCode, safe.errorMessage);
         });
+      received += r.data.rows?.length || 0;
       for (const row of r.data.rows || []) {
         const [date, url] = row.keys || [];
         if (!date || !url) continue;
+        if (date < d.start || date > d.end || !urlInProperty(url, siteUrl))
+          throw new ReportReadError(
+            "INVALID_REPORT",
+            "Google returned rows outside the requested report. Existing traffic records are retained.",
+          );
         const impressions =
           Number.isSafeInteger(row.impressions) && row.impressions! >= 0
             ? row.impressions!
@@ -66,18 +79,43 @@ export class ReportingService {
           Number.isSafeInteger(row.clicks) && row.clicks! >= 0
             ? row.clicks!
             : undefined;
+        if (
+          (row.clicks != null && clicks === undefined) ||
+          (row.impressions != null && impressions === undefined)
+        )
+          throw new ReportReadError(
+            "INVALID_REPORT",
+            "Google returned invalid search counts. Existing traffic records are retained.",
+          );
         if (impressions === undefined && clicks === undefined) continue;
-        await this.metrics.traffic({
+        rows.push({
           date,
           url,
           impressions,
           clicks,
-          source: "SEARCH_CONSOLE",
         });
-        imported++;
       }
-      if ((r.data.rows?.length || 0) < 25000) break;
+      if ((r.data.rows?.length || 0) < 25000) {
+        completed = true;
+        break;
+      }
     }
+    if (!completed)
+      throw new ReportReadError(
+        "REPORT_TOO_LARGE",
+        "The report reached the 100,000-row limit. Choose a narrower date range; existing traffic records are retained.",
+      );
+    if (received && !rows.length)
+      throw new ReportReadError(
+        "INVALID_REPORT",
+        "Google returned no usable metrics in its report rows. Existing traffic records are retained.",
+      );
+    if ((await this.search.property()) !== siteUrl)
+      throw new ReportReadError(
+        "PROPERTY_CHANGED",
+        "The selected property changed during the import. Existing traffic records are retained.",
+      );
+    const imported = await this.metrics.searchTraffic(rows);
     return {
       imported,
       note: "Search Console reports top rows and may omit low-volume data. Reporting dates use Google Pacific Time.",

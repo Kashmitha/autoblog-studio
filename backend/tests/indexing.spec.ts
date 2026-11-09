@@ -4,6 +4,8 @@ import {
   safeInspectionLink,
   urlInProperty,
   validSearchProperty,
+  inspectionDue,
+  indexingFollowUp,
 } from "../src/domain/indexing";
 import { SearchConsoleAdapter } from "../src/infrastructure/search-console.adapter";
 import { searchconsole } from "googleapis/build/src/apis/searchconsole";
@@ -16,6 +18,82 @@ jest.mock("googleapis/build/src/apis/searchconsole", () => ({
 jest.mock("googleapis/build/src/apis/webmasters", () => ({
   webmasters: jest.fn(),
 }));
+
+test("automatic inspection cadence spaces results by 24 hours and failed reads by one hour", () => {
+  const now = Date.now();
+  expect(inspectionDue(null, now)).toBe(true);
+  expect(
+    inspectionDue(
+      { state: "NOT_INDEXED", checkedAt: new Date(now - 23 * 3600000) },
+      now,
+    ),
+  ).toBe(false);
+  expect(
+    inspectionDue(
+      { state: "INDEXED", checkedAt: new Date(now - 24 * 3600000) },
+      now,
+    ),
+  ).toBe(true);
+  expect(
+    inspectionDue({ state: "ERROR", checkedAt: new Date(now - 3599999) }, now),
+  ).toBe(false);
+  expect(
+    inspectionDue({ state: "ERROR", checkedAt: new Date(now - 3600000) }, now),
+  ).toBe(true);
+});
+const observation = {
+  state: "NOT_INDEXED",
+  coverageState: "Redirect error",
+  pageFetchState: "REDIRECT_ERROR",
+  indexingState: "INDEXING_STATE_UNSPECIFIED",
+  lastCrawlTime: new Date("2026-11-05T10:31:39Z"),
+};
+test("repeated observations of the same failed crawl do not claim a new crawl failure", () => {
+  const result = indexingFollowUp(true, null, observation, { ...observation });
+  expect(result.category).toBe("attention");
+  expect(result.sameCrawl).toBe(true);
+  expect(result.action).toContain("not a new crawl failure");
+  expect(
+    indexingFollowUp(true, null, observation, {
+      ...observation,
+      lastCrawlTime: null,
+    }).sameCrawl,
+  ).toBe(false);
+});
+test("discovery is waiting, unspecified permissions are unknown and a live fetch does not prove indexing", () => {
+  expect(
+    indexingFollowUp(true, null, {
+      ...observation,
+      coverageState: "Discovered - currently not indexed",
+      pageFetchState: "PAGE_FETCH_STATE_UNSPECIFIED",
+      lastCrawlTime: null,
+    }).category,
+  ).toBe("waiting");
+  expect(
+    indexingFollowUp(true, null, {
+      ...observation,
+      coverageState: "Crawled - currently not indexed",
+      pageFetchState: "SUCCESSFUL",
+      indexingState: "INDEXING_ALLOWED",
+    }).category,
+  ).toBe("waiting");
+  expect(
+    indexingFollowUp(true, null, {
+      ...observation,
+      state: "UNKNOWN",
+      pageFetchState: "SUCCESSFUL",
+      coverageState: null,
+      indexingState: "INDEXING_ALLOWED",
+    }).category,
+  ).not.toBe("indexed");
+  expect(
+    indexingFollowUp(true, null, { ...observation, state: "INDEXED" }).category,
+  ).toBe("indexed");
+  expect(indexingFollowUp(false, null, null).category).toBe("scheduled");
+  expect(indexingFollowUp(true, "Select property", null).category).toBe(
+    "setup",
+  );
+});
 
 test.each([
   ["PASS", "INDEXED"],
@@ -86,11 +164,9 @@ test("distinguishes a disabled API from property denial", () =>
   ).toBe("API_DISABLED"));
 
 test("uses only the official stored-index inspection endpoint with explicit property and bounded reads", async () => {
-  const inspect = jest
-    .fn()
-    .mockResolvedValue({
-      data: { inspectionResult: { indexStatusResult: { verdict: "PASS" } } },
-    });
+  const inspect = jest.fn().mockResolvedValue({
+    data: { inspectionResult: { indexStatusResult: { verdict: "PASS" } } },
+  });
   (searchconsole as jest.Mock).mockReturnValue({
     urlInspection: { index: { inspect } },
   });
@@ -110,15 +186,13 @@ test("uses only the official stored-index inspection endpoint with explicit prop
   );
 });
 test("lists authorized Search Console properties without writing Google settings", async () => {
-  const list = jest
-    .fn()
-    .mockResolvedValue({
-      data: {
-        siteEntry: [
-          { siteUrl: "https://blog.example/", permissionLevel: "siteOwner" },
-        ],
-      },
-    });
+  const list = jest.fn().mockResolvedValue({
+    data: {
+      siteEntry: [
+        { siteUrl: "https://blog.example/", permissionLevel: "siteOwner" },
+      ],
+    },
+  });
   (webmasters as jest.Mock).mockReturnValue({ sites: { list } });
   const adapter = new SearchConsoleAdapter({
     client: async () => ({}),
@@ -128,50 +202,78 @@ test("lists authorized Search Console properties without writing Google settings
 });
 
 test("traffic imports use the selected verified property, preserve actual zeros and do not invent missing metrics", async () => {
-  const query = jest
-    .fn()
-    .mockResolvedValue({
-      data: {
-        rows: [
-          {
-            keys: ["2026-11-01", "https://blog.example/one"],
-            impressions: 45,
-            clicks: 2,
-          },
-          {
-            keys: ["2026-11-01", "https://blog.example/two"],
-            impressions: 0,
-            clicks: 0,
-          },
-          { keys: ["2026-11-01", "https://blog.example/three"] },
-          {
-            keys: ["2026-11-01", "https://blog.example/four"],
-            impressions: 12,
-          },
-        ],
-      },
-    });
+  const query = jest.fn().mockResolvedValue({
+    data: {
+      rows: [
+        {
+          keys: ["2026-11-01", "https://blog.example/one"],
+          impressions: 45,
+          clicks: 2,
+        },
+        {
+          keys: ["2026-11-01", "https://blog.example/two"],
+          impressions: 0,
+          clicks: 0,
+        },
+        { keys: ["2026-11-01", "https://blog.example/three"] },
+        {
+          keys: ["2026-11-01", "https://blog.example/four"],
+          impressions: 12,
+        },
+      ],
+    },
+  });
   (webmasters as jest.Mock).mockReturnValue({ searchanalytics: { query } });
-  const traffic = jest.fn();
+  const traffic = jest.fn().mockImplementation(async (rows) => rows.length);
   const service = new ReportingService(
     {
       client: async () => ({}),
       reportingPermissions: async () => ({ searchConsole: true }),
     } as never,
-    { traffic } as never,
+    { searchTraffic: traffic } as never,
     { property: async () => "https://blog.example/" } as never,
   );
   expect(
     (await service.searchConsole("2026-11-01", "2026-11-02")).imported,
   ).toBe(3);
   expect(query.mock.calls[0][0].siteUrl).toBe("https://blog.example/");
-  expect(traffic.mock.calls[0][0]).toMatchObject({
+  expect(traffic.mock.calls[0][0][0]).toMatchObject({
     impressions: 45,
     clicks: 2,
-    source: "SEARCH_CONSOLE",
   });
-  expect(traffic.mock.calls[1][0]).toMatchObject({ impressions: 0, clicks: 0 });
-  expect(traffic.mock.calls[2][0].clicks).toBeUndefined();
+  expect(traffic.mock.calls[0][0][1]).toMatchObject({
+    impressions: 0,
+    clicks: 0,
+  });
+  expect(traffic.mock.calls[0][0][2].clicks).toBeUndefined();
+});
+test("a later Google page failure does not save an earlier partial report", async () => {
+  const query = jest
+    .fn()
+    .mockResolvedValueOnce({
+      data: {
+        rows: Array.from({ length: 25000 }, () => ({
+          keys: ["2026-11-01", "https://blog.example/post"],
+          clicks: 1,
+          impressions: 2,
+        })),
+      },
+    })
+    .mockRejectedValueOnce({ response: { status: 503 }, message: "SECRET" });
+  (webmasters as jest.Mock).mockReturnValue({ searchanalytics: { query } });
+  const searchTraffic = jest.fn();
+  const service = new ReportingService(
+    {
+      client: async () => ({}),
+      reportingPermissions: async () => ({ searchConsole: true }),
+    } as never,
+    { searchTraffic } as never,
+    { property: async () => "https://blog.example/" } as never,
+  );
+  await expect(
+    service.searchConsole("2026-11-01", "2026-11-02"),
+  ).rejects.toThrow("Google could not return a result");
+  expect(searchTraffic).not.toHaveBeenCalled();
 });
 
 test("traffic reporting requires separate read permission and sanitizes provider failures", async () => {
@@ -188,12 +290,10 @@ test("traffic reporting requires separate read permission and sanitizes provider
   permissions.mockResolvedValue({ searchConsole: true });
   (webmasters as jest.Mock).mockReturnValue({
     searchanalytics: {
-      query: jest
-        .fn()
-        .mockRejectedValue({
-          response: { status: 403 },
-          message: "PRIVATE_TOKEN",
-        }),
+      query: jest.fn().mockRejectedValue({
+        response: { status: 403 },
+        message: "PRIVATE_TOKEN",
+      }),
     },
   });
   await expect(

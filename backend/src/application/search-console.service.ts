@@ -14,6 +14,9 @@ import {
   safeInspectionLink,
   urlInProperty,
   validSearchProperty,
+  automaticInspectionInterval,
+  inspectionDue,
+  indexingFollowUp,
 } from "../domain/indexing";
 
 const text = (value: string | null | undefined, max = 2000) =>
@@ -124,6 +127,12 @@ export class SearchConsoleService {
           : !urlInProperty(a.publishedUrl!, configuration.siteUrl!)
             ? "This article URL is outside the selected Search Console property."
             : null;
+    const latest =
+      confirmed || history.find((i) => i.state !== "ERROR") || null;
+    const lastAttempt = history[0] || null;
+    const previous = history.find(
+      (i) => i.state !== "ERROR" && i.id !== latest?.id,
+    );
     return {
       articleId: a.id,
       title: a.title,
@@ -132,8 +141,16 @@ export class SearchConsoleService {
       eligible,
       canInspect: !blockedReason,
       blockedReason,
-      latest: confirmed || history.find((i) => i.state !== "ERROR") || null,
-      lastAttempt: history[0] || null,
+      latest,
+      lastAttempt,
+      followUp: indexingFollowUp(eligible, blockedReason, latest, previous),
+      nextAutomaticCheckAt:
+        !blockedReason && lastAttempt
+          ? new Date(
+              lastAttempt.checkedAt.getTime() +
+                automaticInspectionInterval(lastAttempt.state),
+            )
+          : null,
       history,
       configuration,
     };
@@ -204,7 +221,60 @@ export class SearchConsoleService {
       note: "Google's stored index report, not a live URL test. Refreshing does not request indexing.",
     };
   }
-  async inspect(id: string) {
+  async refreshDue() {
+    const overview = await this.overview();
+    const due = overview.articles
+      .filter((a) => a.canInspect && inspectionDue(a.lastAttempt))
+      .sort(
+        (a, b) =>
+          (a.lastAttempt?.checkedAt.getTime() || 0) -
+          (b.lastAttempt?.checkedAt.getTime() || 0),
+      );
+    const results: { articleId: string; checked: boolean; error?: string }[] =
+      [];
+    // Three bounded sequential reads fit inside the frontend request timeout.
+    // Recheck cadence under the inspection lock to coalesce tabs and sessions.
+    for (const article of due.slice(0, 3)) {
+      try {
+        const result = await this.inspect(article.articleId, true);
+        results.push({
+          articleId: article.articleId,
+          checked: !result.cached,
+          ...(result.lastAttempt?.state === "ERROR"
+            ? {
+                error:
+                  result.lastAttempt.errorMessage ||
+                  "Google could not return a report.",
+              }
+            : {}),
+        });
+        if (
+          [
+            "AUTH_REQUIRED",
+            "API_DISABLED",
+            "ACCESS_DENIED",
+            "QUOTA",
+            "GOOGLE_UNAVAILABLE",
+          ].includes(result.lastAttempt?.errorCode || "")
+        )
+          break;
+      } catch {
+        results.push({
+          articleId: article.articleId,
+          checked: false,
+          error:
+            "The daily check could not complete. Saved results are retained; try a manual refresh for details.",
+        });
+        break;
+      }
+    }
+    return {
+      checkedAt: new Date(),
+      results,
+      remaining: Math.max(0, due.length - results.length),
+    };
+  }
+  async inspect(id: string, automatic = false) {
     const configuration = await this.configuration();
     const cached = await this.db.$transaction(
       async (tx) => {
@@ -222,6 +292,7 @@ export class SearchConsoleService {
           where: { articleId: id, siteUrl, inspectionUrl },
           orderBy: [{ checkedAt: "desc" }, { id: "desc" }],
         });
+        if (automatic && !inspectionDue(latest)) return true;
         if (
           latest &&
           Date.now() - latest.checkedAt.getTime() <

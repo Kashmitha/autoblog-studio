@@ -1,4 +1,14 @@
-# Search Console verification — 5 November 2026
+# Search Console verification — 6 November 2026
+
+## Daily follow-up update
+
+- 84 unit tests across five suites and 57 integration tests across two suites passed. New coverage verifies 24-hour successful cadence, one-hour failure backoff, serialized concurrent tabs, reuse of recent manual observations, oldest-first batches of three, scheduled/outside-property/unconfigured exclusion, session/Origin/CSRF protection, retained verdicts and unchanged articles/jobs/publishing controls. Repeated crawl observations, discovered/crawled waiting states and unspecified fields are not converted into new failures or completed indexing.
+- Twelve Edge browser checks passed across localhost and 127.0.0.1. New browser fixtures verify automatic startup checks, Overview follow-up, exact article links, waiting/attention filters, the due-check action and mobile layout. Fixtures use fake Google data; they are not evidence of actual indexing.
+- Actual-data checks verified Overview, the waiting filter and the first article card at 1440px and 390px, with no page errors or document overflow. Results show two published posts, zero confirmed indexed, one waiting and one needing attention. No simulated verdict was saved to the working database.
+- Backend/frontend type checks and Docker production builds passed. The frontend proxy timeout accommodates three bounded Google reads. No schema migration is required.
+- The 6 November git-diff schedule is now confirmed LIVE/PUBLISHED by read-only Blogger sync. The 7/8 November schedules remain pending remotely. A before/after API comparison protects article bodies/labels/versions/approval/status, remote metadata, paused local automation and disabled paid AI. The live due-check endpoint reuses today's recent real reports without another Google read. Private comparison/visual evidence is in ignored `.local/daily-follow-up-*` files.
+
+## Historical 5 November implementation verification
 
 Subsequent live activation: owner consent and verified-property selection are complete. A real call through Studio's inspection endpoint returned NOT_INDEXED with Redirect error, last crawl 5 November at 16:01:39 Asia/Colombo, checked at 18:13:33. This verifies the live read path and negative result, not completed indexing. The newer failed crawl requires investigation; a fresh live test should use the owner's Search Console browser because the assistant's separate browser account cannot access the property. Exact response and identifying fields remain in ignored `.local/first-real-indexing-result.json`. Setup-pending notes below describe the earlier implementation verification snapshot.
 
@@ -11,7 +21,7 @@ Executed local checks for the indexing/reporting implementation:
 - An API baseline comparison confirmed the four real articles' statuses, versions, saved approvals and dates, all remote post metadata including the three accepted Blogger schedules, paused local automation and disabled paid AI were unchanged. No fake traffic, revenue or inspection result was inserted into the working database.
 - Prisma generation, both application type checks and Docker production builds passed. The sixth additive migration creates ReportingSettings and IndexInspection with a state constraint and article foreign key. A fresh ignored database backup preceded it.
 
-Live configuration remains property not selected and Search Console read access not connected. Actual Google API verdicts and traffic imports need the owner's API enablement/read consent and verified-property selection. Existing Search Console ownership/sitemap Success are already complete and should not be repeated. Indexing itself remains unconfirmed. Adsterra revenue is still manual/CSV; no automatic earnings sync, paid AI request, hosting purchase, new publication or indexing request occurred.
+At the initial verification snapshot, no property/read grant had yet been connected. The owner subsequently completed activation, as recorded above; no repeat setup is required. Indexing remains unconfirmed. Adsterra revenue is still manual/CSV; no automatic earnings sync, paid AI request, hosting purchase or indexing request occurred.
 
 Private evidence: `.local/indexing-live-baseline.json`, `.local/indexing-live-readiness.json`, `.local/indexing-ui-verification.json`, ignored screenshots and test logs. Credentials and raw provider token/error payloads are not printed or committed.
 

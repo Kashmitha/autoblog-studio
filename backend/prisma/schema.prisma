@@ -38,6 +38,9 @@ model Article {
   slug String @unique
   niche String @default("DevOps")
   intent String @default("")
+  backlogPriority Int @default(0)
+  planningNotes String @default("")
+  planningVersion Int @default(1)
   excerpt String @default("")
   html String @default("")
   labels String[] @default([])
@@ -67,6 +70,7 @@ model Article {
   jobs PublishJob[]
   events ArticleEvent[]
   inspections IndexInspection[]
+  diagnostics FetchDiagnostic[]
   @@index([status, scheduledAt])
   @@index([updatedAt])
 }
@@ -228,6 +232,20 @@ model ReportingSettings {
   propertyVerifiedAt DateTime?
   updatedAt DateTime @updatedAt
 }
+model TrafficSync {
+  id String @id @default(cuid())
+  siteUrl String
+  trigger String
+  state String
+  startDate DateTime @db.Date
+  endDate DateTime @db.Date
+  imported Int @default(0)
+  errorCode String?
+  errorMessage String?
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  @@index([siteUrl, startedAt])
+}
 model IndexInspection {
   id String @id @default(cuid())
   articleId String
@@ -251,4 +269,16 @@ model IndexInspection {
   errorMessage String?
   checkedAt DateTime @default(now())
   @@index([articleId, siteUrl, inspectionUrl, checkedAt])
+}
+model FetchDiagnostic {
+  id String @id @default(cuid())
+  articleId String
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  url String
+  state String
+  result Json?
+  errorMessage String?
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  @@index([articleId, url, startedAt])
 }

@@ -151,7 +151,6 @@ export default function Studio() {
     if (!auth) return;
     void post<{ results: { error?: string }[] }>("/blogger/sync")
       .then((result) => {
-        window.dispatchEvent(new Event("blogger-status-synced"));
         if (result.results.some((r) => r.error))
           notify(
             "Some Blogger statuses could not be refreshed. Open the article for details.",
@@ -163,7 +162,72 @@ export default function Studio() {
           "Blogger status could not be refreshed. Last saved statuses are shown.",
           true,
         ),
-      );
+      )
+      .finally(() => window.dispatchEvent(new Event("blogger-status-synced")));
+  }, [auth, notify]);
+  useEffect(() => {
+    if (!auth) return;
+    let checking = false,
+      cancelled = false;
+    const refresh = () => {
+      if (document.visibilityState !== "visible" || checking || cancelled)
+        return;
+      checking = true;
+      const indexing = post<{ results: { error?: string }[] }>(
+        "/seo/indexing/refresh-due",
+      )
+        .then((result) => {
+          if (cancelled) return;
+          window.dispatchEvent(new Event("indexing-status-synced"));
+          if (result.results.some((r) => r.error))
+            notify(
+              "Some daily indexing checks could not complete. Saved results remain available in Traffic & SEO.",
+              true,
+            );
+        })
+        .catch(() => {
+          if (!cancelled)
+            notify(
+              "Daily indexing checks could not complete. Saved results remain available in Traffic & SEO.",
+              true,
+            );
+        });
+      const traffic = post<{
+        sync: { state: string } | null;
+        skipped: boolean;
+      }>("/reports/search-console/refresh-due")
+        .then((result) => {
+          if (cancelled) return;
+          window.dispatchEvent(new Event("traffic-records-changed"));
+          if (result.sync?.state === "FAILED" && !result.skipped)
+            notify(
+              "The daily search traffic import failed. Saved reports remain available; see Traffic & SEO for details.",
+              true,
+            );
+        })
+        .catch(() => {
+          if (!cancelled)
+            notify(
+              "The daily search traffic import could not complete. See Traffic & SEO for details.",
+              true,
+            );
+        });
+      void Promise.allSettled([indexing, traffic]).finally(() => {
+        checking = false;
+      });
+    };
+    // Run after Blogger status sync so a newly LIVE post becomes eligible.
+    window.addEventListener("blogger-status-synced", refresh);
+    window.addEventListener("reporting-config-changed", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 30 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("blogger-status-synced", refresh);
+      window.removeEventListener("reporting-config-changed", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [auth, notify]);
   useEffect(() => {
     setMobile(false);

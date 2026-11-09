@@ -3,6 +3,12 @@ import { test, expect } from "@playwright/test";
 test("blog discovery renders a selectable blog and a useful genuine-empty state", async ({
   page,
 }) => {
+  await page.route("**/api/reports/search-console/refresh-due", (route) =>
+    route.fulfill({ json: { skipped: true, sync: null, imported: 0 } }),
+  );
+  await page.route("**/api/seo/indexing/refresh-due", (route) =>
+    route.fulfill({ status: 201, json: { results: [], remaining: 0 } }),
+  );
   let blogs: { id: string; name: string; url: string }[] = [
     {
       id: "fixture-blog",

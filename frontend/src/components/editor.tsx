@@ -22,6 +22,7 @@ import { useAction, useResource } from "./hooks";
 import { Badge, Empty, Field, Modal, Notice } from "./ui";
 import { ResourceState, niches, ViewProps } from "./views";
 import { ArticleIndexing } from "./indexing";
+import { InternalLinks } from "./internal-links";
 export default function Editor({
   id,
   notify,
@@ -466,6 +467,14 @@ export default function Editor({
               </section>
             </div>
             <aside className="editor-aside">
+              <InternalLinks
+                id={id}
+                version={article.version}
+                html={doc.html}
+                locked={locked}
+                onInsert={(html) => update({ html })}
+                notify={notify}
+              />
               <ArticleIndexing article={article} notify={notify} />
               <section className="panel padded">
                 <h2>Content update reminder</h2>

@@ -197,6 +197,109 @@ export interface IndexingConfiguration {
   googleConnected: boolean;
   googleConfigured: boolean;
 }
+export interface PerformancePeriod {
+  pageviews: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  daysReported: number;
+  viewDaysReported: number;
+  searchDaysReported: number;
+  latestReportedDate: string | null;
+}
+export interface TrafficSyncAttempt {
+  id: string;
+  siteUrl: string;
+  trigger: "automatic" | "manual";
+  state: "RUNNING" | "SUCCEEDED" | "EMPTY" | "FAILED";
+  startDate: string;
+  endDate: string;
+  imported: number;
+  startedAt: string;
+  finishedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+export interface TrafficSyncStatus {
+  configuration: IndexingConfiguration;
+  history: TrafficSyncAttempt[];
+  lastSuccess: TrafficSyncAttempt | null;
+  lastAttempt: TrafficSyncAttempt | null;
+  nextAutomaticSyncAt: string | null;
+  note: string;
+}
+export interface LiveFetchResult {
+  outcome:
+    "NO_ISSUE_REPRODUCED" | "ISSUE_OBSERVED" | "INCONCLUSIVE" | "REVIEW_NEEDED";
+  checkedAt: string;
+  url: string;
+  scriptsExecuted: false;
+  limitation: string;
+  profiles: {
+    name: string;
+    finalUrl: string | null;
+    status: number | null;
+    error: string | null;
+    hops: { url: string; status: number; location: string | null }[];
+    findings: { code: string; severity: "issue" | "review"; message: string }[];
+    metadata: null | {
+      canonicals: string[];
+      robots: { agent: string; content: string }[];
+      refreshHeader: string | null;
+      metaRefresh: string[];
+      noindex: boolean;
+    };
+  }[];
+}
+export interface FetchDiagnosticRun {
+  id: string;
+  state: "RUNNING" | "COMPLETED" | "FAILED";
+  startedAt: string;
+  finishedAt: string | null;
+  result: LiveFetchResult | null;
+  errorMessage: string | null;
+}
+export interface FetchDiagnosticReport {
+  article: { id: string; title: string; publishedUrl: string | null };
+  eligible: boolean;
+  canCheck: boolean;
+  blockedReason: string | null;
+  latest: FetchDiagnosticRun | null;
+  history: FetchDiagnosticRun[];
+  nextCheckAt: string | null;
+  google: {
+    state: string;
+    coverageState: string | null;
+    lastCrawlTime: string | null;
+    checkedAt: string;
+    inspectionResultLink: string | null;
+  } | null;
+  cached?: boolean;
+}
+export interface ArticlePerformanceReport {
+  generatedAt: string;
+  days: number;
+  current: { start: string; end: string };
+  previous: { start: string; end: string };
+  dateConvention: string;
+  note: string;
+  totalPublished: number;
+  truncated: boolean;
+  articles: {
+    articleId: string;
+    title: string;
+    url: string;
+    publishedAt: string | null;
+    current: PerformancePeriod;
+    previous: PerformancePeriod;
+    viewSource: string | null;
+    searchSource: string | null;
+    changes: Record<
+      "clicks" | "pageviews" | "impressions",
+      { absolute: number; percent: number | null } | null
+    >;
+  }[];
+}
 export interface IndexInspection {
   id: string;
   state: "INDEXED" | "NOT_INDEXED" | "UNKNOWN" | "ERROR";
@@ -227,4 +330,12 @@ export interface IndexingReport {
   history: IndexInspection[];
   configuration: IndexingConfiguration;
   cached?: boolean;
+  followUp?: {
+    category:
+      "scheduled" | "setup" | "unknown" | "indexed" | "waiting" | "attention";
+    title: string;
+    action: string;
+    sameCrawl: boolean;
+  };
+  nextAutomaticCheckAt?: string | null;
 }

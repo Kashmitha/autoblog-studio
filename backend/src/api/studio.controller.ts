@@ -36,6 +36,7 @@ import {
 } from "./dtos";
 import { publicGet } from "../infrastructure/public-http";
 import { ReportingService } from "../application/reporting.service";
+import { TrafficSyncService } from "../application/traffic-sync.service";
 import { SearchConsoleService } from "../application/search-console.service";
 import { env } from "../config";
 @Controller()
@@ -50,6 +51,7 @@ export class StudioController {
     private readonly media: MediaService,
     private readonly reporting: ReportingService,
     private readonly search: SearchConsoleService,
+    private readonly trafficSync: TrafficSyncService,
   ) {}
   @Get("dashboard") dashboard(@Query("month") month?: string) {
     return this.metrics.overview(month);
@@ -290,7 +292,7 @@ export class StudioController {
   @Post("integrations/search-console/sync") searchConsole(
     @Body() d: AnalyticsSyncDto,
   ) {
-    return this.reporting.searchConsole(d.start, d.end);
+    return this.trafficSync.sync(false, d);
   }
   @Post("integrations/analytics/sync") analytics(@Body() d: AnalyticsSyncDto) {
     return this.reporting.analytics(d.start, d.end);

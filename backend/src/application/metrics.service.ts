@@ -6,9 +6,73 @@ import { validateSync } from "class-validator";
 import { PrismaService } from "../infrastructure/prisma.service";
 import { FinanceDto, TrafficDto } from "../api/dtos";
 import { summarizeFinance } from "../domain/finance";
+import { randomUUID } from "node:crypto";
+import { reportingRange } from "../domain/reporting";
 @Injectable()
 export class MetricsService {
   constructor(private readonly db: PrismaService) {}
+  async searchTraffic(
+    rows: {
+      date: string;
+      url: string;
+      impressions?: number;
+      clicks?: number;
+    }[],
+  ) {
+    if (rows.length > 100000)
+      throw new BadRequestException(
+        "Narrow the report date range to import fewer than 100,000 rows.",
+      );
+    const unique = new Map<
+      string,
+      {
+        id: string;
+        date: string;
+        url: string;
+        impressions: number | null;
+        clicks: number | null;
+      }
+    >();
+    for (const row of rows) {
+      if (
+        !reportingRange(row.date, row.date) ||
+        !/^https?:\/\//.test(row.url) ||
+        row.url.length > 2048 ||
+        [row.impressions, row.clicks].some(
+          (v) =>
+            v !== undefined &&
+            (!Number.isSafeInteger(v) || v < 0 || v > 2147483647),
+        ) ||
+        (row.clicks !== undefined &&
+          row.impressions !== undefined &&
+          row.clicks > row.impressions)
+      )
+        throw new BadRequestException(
+          "Google returned invalid search metrics. Existing traffic records are retained.",
+        );
+      if (row.clicks === undefined && row.impressions === undefined) continue;
+      unique.set(row.date + "\n" + row.url, {
+        id: randomUUID(),
+        date: row.date,
+        url: row.url,
+        clicks: row.clicks ?? null,
+        impressions: row.impressions ?? null,
+      });
+    }
+    if (!unique.size) return 0;
+    // One parameterized statement commits the whole validated report atomically.
+    // Missing fields never overwrite known values, and repeated imports upsert.
+    await this.db.$executeRaw`
+      INSERT INTO "TrafficMetric" ("id", "date", "url", "source", "impressions", "clicks")
+      SELECT r.id, r.date::date, r.url, 'SEARCH_CONSOLE', r.impressions, r.clicks
+      FROM jsonb_to_recordset(${JSON.stringify([...unique.values()])}::jsonb)
+        AS r(id text, date text, url text, impressions integer, clicks integer)
+      ON CONFLICT ("date", "url", "source") DO UPDATE SET
+        "impressions" = COALESCE(EXCLUDED."impressions", "TrafficMetric"."impressions"),
+        "clicks" = COALESCE(EXCLUDED."clicks", "TrafficMetric"."clicks")
+    `;
+    return unique.size;
+  }
   async finance(dto: FinanceDto) {
     if (dto.source.toLowerCase().includes("sample"))
       throw new BadRequestException(

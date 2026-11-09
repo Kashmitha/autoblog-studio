@@ -1,3 +1,111 @@
+export const automaticInspectionInterval = (state?: string | null) =>
+  state === "ERROR" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+export function inspectionDue(
+  last: { checkedAt: Date; state: string } | null,
+  now = Date.now(),
+) {
+  return (
+    !last ||
+    now - last.checkedAt.getTime() >= automaticInspectionInterval(last.state)
+  );
+}
+
+type Observation = {
+  state: string;
+  coverageState: string | null;
+  pageFetchState: string | null;
+  indexingState: string | null;
+  lastCrawlTime: Date | null;
+};
+export function indexingFollowUp(
+  published: boolean,
+  blockedReason: string | null,
+  latest: Observation | null,
+  previous?: Observation | null,
+) {
+  const sameCrawl =
+    !!latest?.lastCrawlTime &&
+    !!previous?.lastCrawlTime &&
+    latest.lastCrawlTime.getTime() === previous.lastCrawlTime.getTime();
+  if (!published)
+    return {
+      category: "scheduled",
+      title: "Awaiting publication",
+      action:
+        "Blogger must confirm publication before indexing can be checked.",
+      sameCrawl: false,
+    };
+  if (blockedReason)
+    return {
+      category: "setup",
+      title: "Connection needs attention",
+      action: blockedReason,
+      sameCrawl: false,
+    };
+  if (!latest)
+    return {
+      category: "unknown",
+      title: "Awaiting a Google report",
+      action: "Studio will read the stored report during its next daily check.",
+      sameCrawl: false,
+    };
+  if (latest.state === "INDEXED")
+    return {
+      category: "indexed",
+      title: "Indexing confirmed",
+      action:
+        "Google reports this URL indexed. Continue publishing useful articles; ranking and traffic are separate.",
+      sameCrawl,
+    };
+  const fetchError =
+    latest.pageFetchState &&
+    !["SUCCESSFUL", "PAGE_FETCH_STATE_UNSPECIFIED"].includes(
+      latest.pageFetchState,
+    );
+  const blocked =
+    latest.indexingState &&
+    !["INDEXING_ALLOWED", "INDEXING_STATE_UNSPECIFIED"].includes(
+      latest.indexingState,
+    );
+  if (fetchError || blocked)
+    return {
+      category: "attention",
+      title:
+        latest.pageFetchState === "REDIRECT_ERROR"
+          ? "Investigate the recorded redirect error"
+          : "Review Google's recorded access issue",
+      action: sameCrawl
+        ? "Google is reporting the same crawl again, not a new crawl failure. Open Search Console for this URL and compare a fresh Test Live URL result with the recorded crawl."
+        : "Open Search Console for this URL and run Test Live URL. Investigate the reported access issue before changing settings.",
+      sameCrawl,
+    };
+  const coverage = latest.coverageState?.toLowerCase() || "";
+  if (coverage.includes("discovered") && coverage.includes("not indexed"))
+    return {
+      category: "waiting",
+      title: "Waiting for Google's crawl",
+      action:
+        "Google has discovered this URL but reports no completed crawl yet. Keep the published URL stable; a manual indexing request is optional.",
+      sameCrawl,
+    };
+  if (coverage.includes("crawled") && coverage.includes("not indexed"))
+    return {
+      category: "waiting",
+      title: "Crawled; indexing not confirmed",
+      action:
+        "Google fetched this URL but has not indexed it. Review the article's usefulness, internal links and canonical details if this persists.",
+      sameCrawl,
+    };
+  return {
+    category: "attention",
+    title: "Review Google's indexing reason",
+    action:
+      "Open Search Console for this exact URL and review its coverage and canonical details. A successful live test alone does not confirm indexing.",
+    sameCrawl,
+  };
+}
+
 export function validSearchProperty(site: string) {
   if (site.startsWith("sc-domain:"))
     return /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(

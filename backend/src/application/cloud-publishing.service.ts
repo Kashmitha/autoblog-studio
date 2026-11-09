@@ -38,7 +38,7 @@ export class CloudPublishingService {
       { timeout: 180000, maxWait: 180000 },
     );
   }
-  private async integration() {
+  private async integration(requirePublishingCheckpoint = true) {
     if (env.bloggerMode !== "live")
       throw new BadRequestException(
         "Blogger scheduling is available in live mode only.",
@@ -46,7 +46,14 @@ export class CloudPublishingService {
     const i = await this.db.integration.findUnique({
       where: { provider: "google" },
     });
-    if (!i?.blogId || !i.firstLiveTestAuthorizedAt || !i.liveTestSucceededAt)
+    if (!i?.blogId)
+      throw new BadRequestException(
+        "Select your connected Blogger blog first.",
+      );
+    if (
+      requirePublishingCheckpoint &&
+      (!i.firstLiveTestAuthorizedAt || !i.liveTestSucceededAt)
+    )
       throw new BadRequestException(
         "Complete the connected blog's first live publishing test before scheduling on Blogger.",
       );
@@ -368,7 +375,8 @@ export class CloudPublishingService {
     });
   }
   private async syncOneLocked(id: string) {
-    const i = await this.integration();
+    // Read existing pinned posts even when new publication is not authorized.
+    const i = await this.integration(false);
     const a = await this.articles.get(id);
     if (a.publishingTarget !== "blogger" || !a.remotePostId)
       throw new BadRequestException(

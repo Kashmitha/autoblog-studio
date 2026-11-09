@@ -1030,6 +1030,28 @@ test("status sync records confirmed LIVE publication and Blogger's timestamp wit
     expect(f.schedule).not.toHaveBeenCalled();
   }));
 
+test("read-only status sync works without a publishing checkpoint while new schedules remain blocked", async () =>
+  withCloud(async (f) => {
+    await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
+    await db.integration.update({
+      where: { provider: "google" },
+      data: { firstLiveTestAuthorizedAt: null, liveTestSucceededAt: null },
+    });
+    expect((await f.cloud.sync(f.id)).results[0]).toMatchObject({
+      id: f.id,
+      status: "SCHEDULED",
+    });
+    expect(
+      (await db.article.findUniqueOrThrow({ where: { id: f.id } }))
+        .remoteSyncError,
+    ).toBeNull();
+    await expect(f.cloud.schedule(f.id, f.at)).rejects.toThrow(
+      "Complete the connected blog's first live publishing test",
+    );
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+
 test("sync failures preserve the last confirmed schedule; changed blogs and unsupported remote states never mark a post published", async () =>
   withCloud(async (f) => {
     await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
