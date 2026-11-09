@@ -16,6 +16,7 @@ import { Media } from "@/lib/types";
 import { ViewProps, PageHeading, ResourceState } from "./views";
 import { Badge, Empty, Field, Modal, Notice } from "./ui";
 import { useAction, useResource } from "./hooks";
+import { ContentArchive } from "./content-archive";
 const initial = {
   title: "",
   url: "",
@@ -141,25 +142,48 @@ export function MediaLibrary({ notify }: ViewProps) {
           <div className="media-grid">
             {r.data.map((m) => (
               <div className="panel media-card" key={m.id}>
-                <img src={m.url} alt={m.alt} loading="lazy" />
+                {m.provider === "ARCHIVE" ? (
+                  <div className="padded">
+                    <FileImage size={28} />
+                    <p className="small subtle">
+                      Archived credit reference. Re-add the original before
+                      using this image.
+                    </p>
+                  </div>
+                ) : (
+                  <img src={m.url} alt={m.alt} loading="lazy" />
+                )}
                 <div>
                   <h3>{m.title}</h3>
                   <p className="small subtle">{m.attribution}</p>
                   <div className="inline spread">
                     <Badge value={m.provider} />
-                    <a
-                      className="text-link small"
-                      href={m.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Source
-                      <ExternalLink size={13} />
-                    </a>
+                    {m.provider !== "ARCHIVE" && (
+                      <a
+                        className="text-link small"
+                        href={m.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Source
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
                   </div>
                   <small className="subtle">
-                    Rights checked {new Date(m.checkedAt).toLocaleDateString()}
+                    {m.provider === "ARCHIVE"
+                      ? "Rights need a fresh review"
+                      : "Rights checked " +
+                        new Date(m.checkedAt).toLocaleDateString()}
                   </small>
+                  {m.provider === "ARCHIVE" && (
+                    <p className="small break-url">
+                      {m.creator} · {m.license}. Re-add the image using the
+                      import form, review rights, then replace this reference in
+                      the article. Source reference:{" "}
+                      {m.sourceUrl || "Not recorded"}
+                    </p>
+                  )}
                   {m.provider === "ORIGINAL" && (
                     <button
                       className="text-button small"
@@ -171,12 +195,13 @@ export function MediaLibrary({ notify }: ViewProps) {
                       Set public delivery URL
                     </button>
                   )}
-                  {!m.url.startsWith("https://") && (
-                    <Notice tone="warning">
-                      Private original. Public HTTPS hosting is required before
-                      publication.
-                    </Notice>
-                  )}
+                  {m.provider !== "ARCHIVE" &&
+                    !m.url.startsWith("https://") && (
+                      <Notice tone="warning">
+                        Private original. Public HTTPS hosting is required
+                        before publication.
+                      </Notice>
+                    )}
                 </div>
               </div>
             ))}
@@ -445,7 +470,7 @@ export function MediaLibrary({ notify }: ViewProps) {
     </>
   );
 }
-export function Preferences({ integrations }: ViewProps) {
+export function Preferences({ integrations, notify }: ViewProps) {
   return (
     <>
       <PageHeading
@@ -509,6 +534,7 @@ export function Preferences({ integrations }: ViewProps) {
           </div>
         </section>
       </div>
+      <ContentArchive notify={notify} />
       <Notice>
         Changing OWNER_PASSWORD in .env does not silently reset an existing
         database account. Use the documented local owner-password reset script.

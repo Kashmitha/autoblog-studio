@@ -1,5 +1,7 @@
 # Verification evidence
 
+9 November checkpoint: 117 unit tests, 97 isolated integration tests, 38 browser-suite checks, backend/frontend type checks and production Docker builds passed. Saved Adsterra report history includes persistence, concurrent deduplication, revised/overlapping snapshots, owner/CSRF protection, malformed/oversize rejection and reopening after refresh. The real supplied report read-back verified 53 impressions, one click and exported $0 without changing articles, jobs, automation, ledger or traffic records. The working database was backed up before the tenth additive migration. See [ad reports](AD_REPORTS.md) and [current progress](PROGRESS.md) for scope and earlier archive/publishing-checkpoint verification.
+
 Latest indexing/reporting update (5 November): [Search Console verification](SEARCH_CONSOLE_TESTING.md) records 81 unit tests, 52 isolated integration tests, ten Edge tests, six actual-data UI checks and the remaining read-consent checkpoint. Earlier evidence below is historical.
 
 Latest scheduling update (5 November): see [Blogger scheduling verification](CLOUD_SCHEDULING_TESTING.md) for 49 unit tests, 38 isolated integration tests, six browser tests and actual owner-schedule linking. The original 4 November evidence below is retained as historical context.

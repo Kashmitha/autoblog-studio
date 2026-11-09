@@ -6,6 +6,54 @@ import {
 import { encrypt } from "../src/domain/security";
 jest.mock("googleapis/build/src/apis/blogger", () => ({ blogger: jest.fn() }));
 
+test.each(["same-authorized", "same-pending", "different", "not-owned"])(
+  "blog selection preserves a same-blog checkpoint and requires a new one for a different destination (%s)",
+  async (scenario) => {
+    const update = jest.fn(),
+      execute = jest.fn(),
+      tx = {
+        integration: {
+          findUnique: async () => ({
+            blogId: scenario === "different" ? "previous" : "selected",
+          }),
+          update,
+        },
+        $executeRaw: execute,
+      };
+    const service = new GoogleService({
+      $transaction: async (work: any) => work(tx),
+    } as never);
+    jest
+      .spyOn(service, "blogs")
+      .mockResolvedValue(
+        scenario === "not-owned"
+          ? []
+          : [{ id: "selected", url: "https://fixture.blogspot.com/" }],
+      );
+    try {
+      if (scenario === "not-owned") {
+        await expect(service.select("selected")).rejects.toThrow("owned");
+        expect(update).not.toHaveBeenCalled();
+        return;
+      }
+      await service.select("selected");
+      expect(execute).toHaveBeenCalled();
+      const data = update.mock.calls[0][0].data;
+      if (scenario === "different")
+        expect(data).toMatchObject({
+          firstLiveTestAuthorizedAt: null,
+          liveTestSucceededAt: null,
+        });
+      else {
+        expect(data).not.toHaveProperty("firstLiveTestAuthorizedAt");
+        expect(data).not.toHaveProperty("liveTestSucceededAt");
+      }
+    } finally {
+      jest.restoreAllMocks();
+    }
+  },
+);
+
 test("a background credential refresh cannot overwrite a newer OAuth permission grant", async () => {
   const original = process.env.TOKEN_ENCRYPTION_KEY;
   const key = "cd".repeat(32);
@@ -24,13 +72,11 @@ test("a background credential refresh cannot overwrite a newer OAuth permission 
       updateMany,
     },
   } as never);
-  jest
-    .spyOn(service, "oauth")
-    .mockReturnValue({
-      credentials: { access_token: "fixture-refreshed" },
-      setCredentials: jest.fn(),
-      getAccessToken: async () => ({ token: "fixture" }),
-    } as never);
+  jest.spyOn(service, "oauth").mockReturnValue({
+    credentials: { access_token: "fixture-refreshed" },
+    setCredentials: jest.fn(),
+    getAccessToken: async () => ({ token: "fixture" }),
+  } as never);
   try {
     await service.client();
     expect(updateMany).toHaveBeenCalledWith(

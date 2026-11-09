@@ -190,17 +190,29 @@ export class GoogleService {
       throw new BadRequestException(
         "Choose a blog owned by the connected account.",
       );
-    return this.db.integration
-      .update({
-        where: { provider: "google" },
-        data: {
-          blogId,
-          blogUrl: selected.url,
-          firstLiveTestAuthorizedAt: null,
-          liveTestSucceededAt: null,
-        },
-      })
-      .then(() => ({ ok: true }));
+    return this.db.$transaction(
+      async (tx) => {
+        // Selecting the already connected blog is not a revocation of its live test.
+        // Serialize destination changes with publication, retaining the reset for a different blog.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
+        const current = await tx.integration.findUnique({
+          where: { provider: "google" },
+          select: { blogId: true },
+        });
+        await tx.integration.update({
+          where: { provider: "google" },
+          data: {
+            blogId,
+            blogUrl: selected.url,
+            ...(current?.blogId === blogId
+              ? {}
+              : { firstLiveTestAuthorizedAt: null, liveTestSucceededAt: null }),
+          },
+        });
+        return { ok: true };
+      },
+      { maxWait: 10000, timeout: 180000 },
+    );
   }
   async posts() {
     const i = await this.db.integration.findUnique({

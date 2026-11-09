@@ -5,6 +5,17 @@ datasource db {
   provider = "postgresql"
   url = env("DATABASE_URL")
 }
+
+model AdReport {
+  id String @id @default(cuid())
+  fingerprint String @unique
+  filename String
+  scopeLabel String @default("")
+  timezoneLabel String @default("")
+  report Json
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
 enum ArticleStatus {
   PLANNED
   RESEARCHING

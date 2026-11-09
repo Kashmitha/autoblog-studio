@@ -5,6 +5,7 @@ COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
 RUN npm ci
 COPY frontend frontend
+COPY backend/src/domain/adsterra-report.ts backend/src/domain/adsterra-report.ts
 ARG API_INTERNAL_URL=http://backend:4000
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 RUN npm run build -w frontend

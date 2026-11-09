@@ -6,7 +6,7 @@ export interface Issue {
   message: string;
   evidence: string;
 }
-export const safeHtml = (html: string) =>
+export const safeHtml = (html: string, allowImages = true) =>
   sanitizeHtml(html, {
     allowedTags: [
       "p",
@@ -33,7 +33,7 @@ export const safeHtml = (html: string) =>
       "figure",
       "figcaption",
       "img",
-    ],
+    ].filter((tag) => allowImages || tag !== "img"),
     allowedAttributes: {
       a: ["href", "title"],
       img: ["src", "alt", "width", "height", "loading"],

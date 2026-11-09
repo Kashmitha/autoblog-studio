@@ -38,6 +38,8 @@ If no draft can be found, do not blindly clear the attempt: examine Blogger dire
 
 ## Backups
 
+Settings also provides a [portable content archive](CONTENT_ARCHIVE.md) of articles, research/planning notes and media references. It is useful for a separate content copy but does not include the database, originals, credentials or operational history and has no automatic restore. Continue using the full backup procedure below for recovery.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/backup.ps1
 ```

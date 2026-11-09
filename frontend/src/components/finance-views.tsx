@@ -2,6 +2,7 @@
 import { IndexingOverview } from "./indexing";
 import { ArticlePerformance } from "./performance";
 import { TrafficSync } from "./traffic-sync";
+import { AdsterraReport } from "./adsterra-report";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -89,6 +90,7 @@ export function Finance({
         </label>
       </div>
       <ResourceState {...r} />
+      {!expenses && <AdsterraReport />}
       {d && (
         <>
           <div className="metric-grid">

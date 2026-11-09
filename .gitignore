@@ -12,3 +12,4 @@ playwright-report/
 backups/
 uploads/
 .local/
+autoblog-content*.json

@@ -93,6 +93,8 @@ No paid hosting is necessary for the local experiment. Before deploying, verify 
 
 ## Resume after DONE
 
+Current content checkpoint, 9 November: the owner explicitly authorized verified checkpoint recovery and immediate publication of both approved Git tutorials. Both are now confirmed LIVE with exact approved HTML/labels, unique remote posts and public HTTP 200. Automation was paused again and no local publication remains pending. The same-blog checkpoint-reset bug is fixed and actual reselection preserves the recovered dates; no repeated first-test setup is needed for this unchanged blog. Do not republish either article. The next business follow-up is actual readership and publisher earnings reports; no earnings are inferred from publication.
+
 Read PROGRESS.md and inspect configuration presence without printing secrets. Test the configured connection, respect the separate live-publication gate, and continue from the recorded next action. Do not repeat completed setup or ask for secrets in chat.
 
 For the currently running Docker installation, after editing credentials recreate the API/worker with: docker compose --profile app up -d --no-deps --force-recreate backend worker. A simple docker restart does not reload .env.
