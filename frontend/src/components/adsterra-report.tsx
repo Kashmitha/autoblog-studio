@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, formatDate } from "@/lib/api";
 import { parseAdsterraReport, adReportMoney } from "@/lib/adsterra-report";
 import { Field, Notice } from "./ui";
+import { AdReportComparison } from "./ad-report-comparison";
 
 type SavedAdReport = {
   id: string;
@@ -278,6 +279,7 @@ export function AdsterraReport() {
           )}
         </>
       )}
+      <AdReportComparison history={history} />
     </section>
   );
 }
