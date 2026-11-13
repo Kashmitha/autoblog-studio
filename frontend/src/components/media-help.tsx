@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -12,7 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api, post } from "@/lib/api";
-import { Media } from "@/lib/types";
+import { Media, Integrations } from "@/lib/types";
 import { ViewProps, PageHeading, ResourceState } from "./views";
 import { Badge, Empty, Field, Modal, Notice } from "./ui";
 import { useAction, useResource } from "./hooks";
@@ -33,6 +33,7 @@ const initial = {
 };
 export function MediaLibrary({ notify }: ViewProps) {
   const r = useResource<Media[]>("/media"),
+    integrations = useResource<Integrations>("/integrations"),
     a = useAction(notify);
   const [q, setQ] = useState(""),
     [provider, setProvider] = useState("wikimedia"),
@@ -42,8 +43,23 @@ export function MediaLibrary({ notify }: ViewProps) {
     [file, setFile] = useState<File | null>(null),
     [delivery, setDelivery] = useState<Media | null>(null),
     [publicUrl, setPublicUrl] = useState("");
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const initialQuery = query.get("q");
+    if (initialQuery) setQ(initialQuery.slice(0, 120));
+    const initialProvider = query.get("provider");
+    if (initialProvider === "wikimedia" || initialProvider === "unsplash")
+      setProvider(initialProvider);
+  }, []);
+  const unsplashUnavailable = integrations.data
+    ? !integrations.data.unsplashConfigured
+    : true;
+  const importBlocked =
+    form.provider === "UNSPLASH" &&
+    (unsplashUnavailable || !form.providerPhotoId);
   async function search(e: React.FormEvent) {
     e.preventDefault();
+    if (provider === "unsplash" && unsplashUnavailable) return;
     await a.run(async () => {
       const { api } = await import("@/lib/api");
       setResults(
@@ -75,6 +91,41 @@ export function MediaLibrary({ notify }: ViewProps) {
           Import original / licensed image
         </button>
       </PageHeading>
+      <section className="panel padded spaced" aria-label="Media import guide">
+        <h2>Choose a photo for your workflow</h2>
+        <p>
+          For the automatic photo pool, search Wikimedia Commons or use
+          photographs you took yourself. Unsplash imports are for manual article
+          attachment.
+        </p>
+        <ol className="help-list">
+          <li>
+            Search below and choose <strong>Review &amp; import</strong> to fill
+            the image URL, creator, source and license from the provider.
+          </li>
+          <li>
+            Open the original source page. Check the real photograph, exact
+            license and any person, trademark or location restrictions. Write
+            alt text describing what is visible and record only modifications
+            you actually make.
+          </li>
+          <li>
+            Import the reviewed image. For manual use, open an article and
+            select it under <strong>Article images</strong>. For automatic use,
+            add a Commons or original photo's accurate keywords and confirm it
+            in{" "}
+            <Link className="text-link" href="/automation">
+              Automation → Real-photo pool
+            </Link>
+            .
+          </li>
+        </ol>
+        <p className="small subtle">
+          Search prepares candidates only. Importing does not attach an image to
+          an article or authorize publication. Do not label someone else's image
+          as your original work.
+        </p>
+      </section>
       <section className="panel padded">
         <form className="media-search" onSubmit={search}>
           <div className="search-input">
@@ -96,10 +147,26 @@ export function MediaLibrary({ notify }: ViewProps) {
             <option value="wikimedia">Wikimedia Commons</option>
             <option value="unsplash">Unsplash API</option>
           </select>
-          <button className="secondary" disabled={a.busy}>
+          <button
+            className="secondary"
+            disabled={
+              a.busy || (provider === "unsplash" && unsplashUnavailable)
+            }
+          >
             {a.busy ? "Searching…" : "Search images"}
           </button>
         </form>
+        {provider === "unsplash" && (
+          <Notice tone={unsplashUnavailable ? "warning" : undefined}>
+            {integrations.error
+              ? "Could not check Unsplash configuration. Refresh before importing."
+              : !integrations.data
+                ? "Checking Unsplash configuration…"
+                : unsplashUnavailable
+                  ? "Unsplash Access Key is not configured. Use Wikimedia Commons without a key, or configure UNSPLASH_ACCESS_KEY privately before searching and importing."
+                  : "Unsplash is configured for manual selection. Choose Review & import from a search result to preserve its photo ID. Unsplash images do not enter the automatic photo pool."}
+          </Notice>
+        )}
         <p className="subtle small">
           Search results are candidates. Review the source page, exact license,
           attribution, modification notes and third-party rights before import.
@@ -229,6 +296,7 @@ export function MediaLibrary({ notify }: ViewProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (importBlocked) return;
               void a.run(async () => {
                 if (file) {
                   const body = new FormData();
@@ -255,6 +323,15 @@ export function MediaLibrary({ notify }: ViewProps) {
               }, "Licensed image imported. Attribution is saved with the asset.");
             }}
           >
+            {form.provider === "UNSPLASH" && (
+              <Notice tone={importBlocked ? "warning" : undefined}>
+                {unsplashUnavailable
+                  ? "Unsplash import is unavailable until its Access Key configuration is confirmed. Wikimedia Commons needs no key."
+                  : !form.providerPhotoId
+                    ? "Close this form, search using Unsplash API, and choose Review & import. A pasted image URL does not include the required API photo ID."
+                    : "Manual-use Unsplash image: verify its source, attribution and license before importing."}
+              </Notice>
+            )}
             {form.provider === "ORIGINAL" && (
               <Field
                 label="Upload my original photo / screenshot (optional)"
@@ -423,7 +500,7 @@ export function MediaLibrary({ notify }: ViewProps) {
               >
                 Cancel
               </button>
-              <button className="primary" disabled={a.busy}>
+              <button className="primary" disabled={a.busy || importBlocked}>
                 Import reviewed image
               </button>
             </div>
