@@ -1,0 +1,111 @@
+<p>
+  A file can appear under both “Changes to be committed” and “Changes not staged
+  for commit” when you stage one version, then edit it again. Git keeps the
+  staged snapshot in its index. Your later edits remain in the working copy
+  until you stage them too.
+</p>
+<p>
+  Start with these commands, replacing <code>notes.txt</code> with your file:
+</p>
+<pre><code>git status --short
+git diff --cached -- notes.txt
+git diff -- notes.txt</code></pre>
+<p>
+  The second command shows what the next ordinary commit would include for that
+  path. The third shows edits made after its staged snapshot. Neither command
+  changes your file.
+</p>
+<h2>Read the two status columns</h2>
+<p>
+  For an ordinary tracked file outside a merge conflict, short status has two
+  columns before the filename. The first compares the index with the current
+  commit. The second compares your working copy with the index. See the
+  <a href="https://git-scm.com/docs/git-status"
+    >official status output reference</a
+  >
+  for the complete table, including conflict codes.
+</p>
+<pre><code>MM notes.txt</code></pre>
+<p>
+  The first M means a modification is staged. The second means the working file
+  also differs from that staged version. It is one path with two comparisons,
+  not two copies competing to be committed. A space in either column matters:
+</p>
+<ul>
+  <li>
+    <code>M </code>: a modification is staged, with no further working-copy
+    difference for that file.
+  </li>
+  <li><code> M</code>: the tracked file has an unstaged modification.</li>
+  <li><code>MM</code>: it has both.</li>
+  <li>
+    <code>AM</code>: a newly added file was staged and then modified again.
+  </li>
+</ul>
+<h2>See exactly which version Git staged</h2>
+<p>Consider a committed file containing two lines:</p>
+<pre><code>title=old
+body=old</code></pre>
+<p>
+  You change the first line to <code>title=new</code>, run
+  <code>git add -- notes.txt</code>, then change the second line to
+  <code>body=new</code>. The index still has the new title with the old body.
+  The working copy has both changes.
+</p>
+<pre><code>git show :notes.txt
+git diff --cached -- notes.txt
+git diff -- notes.txt
+git diff HEAD -- notes.txt</code></pre>
+<p>
+  In this example, the cached diff contains the title edit; the ordinary diff
+  contains the body edit. The HEAD comparison shows the combined working-copy
+  changes relative to the current commit. These comparison modes are documented
+  in <a href="https://git-scm.com/docs/git-diff">git diff</a>. An ordinary
+  <code>git commit</code> uses the index; do not assume everything currently
+  visible in your editor is staged.
+</p>
+<h2>Choose what belongs in the next commit</h2>
+<p>
+  If the staged version is intentional, leave it staged. Review the cached diff
+  before committing. This is useful when a later edit belongs in a separate
+  change.
+</p>
+<p>If you want the current whole file staged, run:</p>
+<pre><code>git add -- notes.txt
+git diff --cached -- notes.txt
+git status --short</code></pre>
+<p>
+  That updates the staged snapshot. If you only want selected later changes,
+  inspect them with <code>git add -p -- notes.txt</code> instead of staging the
+  whole path.
+</p>
+<p>If you want none of this file staged, use Git 2.23 or newer:</p>
+<pre><code>git restore --staged -- notes.txt
+git status --short
+git diff -- notes.txt</code></pre>
+<p>
+  With an existing HEAD commit, this restores the index entry from HEAD and
+  leaves the working file alone. Keep <code>--staged</code>: a working-tree
+  restore has a different purpose and can discard edits. The
+  <a href="https://git-scm.com/docs/git-restore">restore reference</a> explains
+  the destination and default source.
+</p>
+<h2>What was checked</h2>
+<p>
+  An isolated Git 2.55.0 Windows fixture verified the MM example, the separate
+  patches, the staged snapshot, restaging, and byte-for-byte preservation after
+  unstaging. It also verified that unstaging a newly added file changes AM to an
+  untracked entry while retaining its contents. These examples assume a
+  repository with an existing commit and no unresolved merge conflict.
+</p>
+<p>
+  For the next step, use the
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/how-to-unstage-file-in-git-without.html"
+    >full unstaging walkthrough</a
+  >. If the ordinary diff is unexpectedly empty after staging, see
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/why-git-diff-is-empty-after-git-add.html"
+    >why git diff is empty after git add</a
+  >.
+</p>
