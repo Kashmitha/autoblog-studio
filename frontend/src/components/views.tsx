@@ -45,6 +45,7 @@ import type { Notify } from "./studio";
 import { ArticleRows, Badge, Empty, Field, Modal, Notice } from "./ui";
 import { useAction, useResource } from "./hooks";
 import { IndexingOverview } from "./indexing";
+import { WeeklyReview } from "./weekly-review";
 import { ContentBacklog } from "./content-backlog";
 export { Connections } from "./connections";
 export { Finance, Traffic, Jobs } from "./finance-views";
@@ -206,6 +207,7 @@ export function Overview({ notify, integrations }: ViewProps) {
             />
           </div>
           <IndexingOverview notify={notify} compact />
+          <WeeklyReview />
           <div className="dashboard-main-grid">
             <section className="panel performance-panel">
               <div className="panel-heading">

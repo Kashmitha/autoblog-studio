@@ -244,6 +244,11 @@ async function installFixture(page: Page, configured = true) {
     if (path === "/api/media") return route.fulfill({ json: [] });
     if (path === "/api/articles/" + id) return route.fulfill({ json: article });
     if (path === "/api/dashboard") return route.fulfill({ json: dashboard });
+    if (path === "/api/dashboard/weekly-review")
+      return route.fulfill({
+        status: 503,
+        json: { message: "Weekly summary is outside this indexing fixture." },
+      });
     if (path === "/api/traffic/articles")
       return route.fulfill({
         json: {

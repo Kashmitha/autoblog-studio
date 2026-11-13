@@ -59,6 +59,7 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 - [Progress & remaining work](docs/PROGRESS.md)
 - [Portable content archive](docs/CONTENT_ARCHIVE.md)
 - [Adsterra reports and saved history](docs/AD_REPORTS.md)
+- [Weekly review and next actions](docs/WEEKLY_REVIEW.md)
 - [Completed-feature GitHub checkpoints](docs/GITHUB_WORKFLOW.md)
 - [Integration contracts & official sources](docs/INTEGRATIONS.md)
 - [Costs & profitability](docs/OPERATING_COSTS.md)
