@@ -59,6 +59,7 @@ export interface Article {
   status: Status;
   version: number;
   aiAssisted: boolean;
+  approvedAt?: string | null;
   disclosure: boolean;
   canonicalUrl?: string;
   publishedUrl?: string;
@@ -83,6 +84,12 @@ export interface Article {
     createdAt: string;
   }[];
   generation?: {
+    editorialApproval?: {
+      kind: string;
+      version: number;
+      revision?: number;
+      at: string;
+    };
     outline?: string[];
     uncertainties?: string[];
     imageSearchTerms?: string[];

@@ -28,6 +28,35 @@ enum ArticleStatus {
   FAILED
   REJECTED
 }
+model EditorialSettings {
+  id String @id @default("owner")
+  enabled Boolean @default(false)
+  autoPublish Boolean @default(false)
+  autoPlan Boolean @default(false)
+  blogId String?
+  times String[] @default(["09:00", "17:00"])
+  revision Int @default(1)
+  authorizedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+model EditorialRun {
+  id String @id @default(cuid())
+  slotKey String @unique
+  slotAt DateTime
+  state String @default("QUEUED")
+  stage String @default("QUEUED")
+  articleId String? @unique
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  articleVersion Int?
+  policyRevision Int
+  blogId String?
+  message String @default("")
+  candidates Json @default("[]")
+  startedAt DateTime?
+  finishedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([state, slotAt])
+}
 model User {
   id String @id @default(cuid())
   email String @unique
@@ -82,6 +111,7 @@ model Article {
   events ArticleEvent[]
   inspections IndexInspection[]
   diagnostics FetchDiagnostic[]
+  editorialRuns EditorialRun[]
   @@index([status, scheduledAt])
   @@index([updatedAt])
 }

@@ -13,6 +13,7 @@ import {
 import { ArticlesService } from "./articles.service";
 import { publicationHtml } from "../domain/publication";
 import { env } from "../config";
+import { photoPolicy } from "../domain/editorial";
 
 type Remote = Awaited<ReturnType<LiveBloggerAdapter["getPost"]>>;
 const uncertainMessage =
@@ -59,7 +60,15 @@ export class CloudPublishingService {
       );
     return { ...i, blogId: i.blogId };
   }
-  async schedule(id: string, at: string) {
+  async schedule(
+    id: string,
+    at: string,
+    policy?: {
+      expectedBlogId: string;
+      expectedPhotoId?: string;
+      automatic: true;
+    },
+  ) {
     const date = new Date(at);
     if (
       !Number.isFinite(date.getTime()) ||
@@ -70,7 +79,21 @@ export class CloudPublishingService {
       );
     return this.locked(async () => {
       const i = await this.integration();
+      if (policy && i.blogId !== policy.expectedBlogId)
+        throw new ConflictException(
+          "The selected blog changed; automatic scheduling was stopped.",
+        );
       const a = await this.articles.get(id);
+      if (
+        policy?.expectedPhotoId &&
+        !a.media.some(
+          ({ media }) =>
+            media.id === policy.expectedPhotoId && photoPolicy(media),
+        )
+      )
+        throw new ConflictException(
+          "The real-photo pool approval changed; automatic scheduling stopped.",
+        );
       if (
         a.status !== "APPROVED" ||
         !a.approvedAt ||
@@ -86,6 +109,10 @@ export class CloudPublishingService {
       });
       if (settings.emergencyStop)
         throw new ConflictException("Emergency stop is enabled.");
+      if (policy && settings.paused)
+        throw new ConflictException(
+          "Local automation is paused; automatic scheduling was stopped.",
+        );
       const day = DateTime.fromJSDate(date).setZone(settings.timezone);
       const count = await this.db.publishJob.count({
         where: {
@@ -135,8 +162,9 @@ export class CloudPublishingService {
             articleId: id,
             from: "APPROVED",
             to: "PUBLISHING",
-            reason:
-              "Owner requested Blogger-hosted scheduling; recording upload intent before contacting Google.",
+            reason: policy
+              ? "Owner-authorized automatic editorial policy requested Blogger scheduling; recording upload intent before contacting Google."
+              : "Owner requested Blogger-hosted scheduling; recording upload intent before contacting Google.",
           },
         });
         await tx.auditLog.create({

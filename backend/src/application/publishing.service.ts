@@ -222,7 +222,11 @@ export class PublishingService implements OnModuleDestroy {
         });
         if (exists) continue;
         const a = await this.db.article.findFirst({
-          where: { status: "APPROVED", publishingTarget: "local" },
+          where: {
+            status: "APPROVED",
+            publishingTarget: "local",
+            editorialRuns: { none: {} },
+          },
           orderBy: { approvedAt: "asc" },
         });
         if (!a) return;

@@ -92,6 +92,18 @@ export default function Editor({
       <ResourceState {...r} />
       {doc && article && (
         <>
+          {article.approvedAt &&
+            article.generation?.editorialApproval?.kind ===
+              "AUTOMATIC_POLICY" &&
+            article.generation.editorialApproval.version ===
+              article.version && (
+              <Notice tone="warning">
+                This article was approved under your standing automatic policy,
+                not by an individual human editorial review. AI-detector
+                outcomes and factual correctness are not certified by automated
+                checks.
+              </Notice>
+            )}
           <div className="page-heading editor-heading">
             <div>
               <div className="inline">
