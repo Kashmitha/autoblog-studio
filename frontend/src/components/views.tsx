@@ -46,6 +46,7 @@ import { ArticleRows, Badge, Empty, Field, Modal, Notice } from "./ui";
 import { useAction, useResource } from "./hooks";
 import { IndexingOverview } from "./indexing";
 import { WeeklyReview } from "./weekly-review";
+import { EditorialPipeline } from "./editorial-pipeline";
 import { ContentBacklog } from "./content-backlog";
 export { Connections } from "./connections";
 export { Finance, Traffic, Jobs } from "./finance-views";
@@ -1222,6 +1223,7 @@ export function Automation({ notify }: ViewProps) {
         description="Your approved backlog powers automation. Quality always decides what can publish."
       />
       <ResourceState {...r} />
+      <EditorialPipeline notify={notify} />
       {s && (
         <>
           <Notice>

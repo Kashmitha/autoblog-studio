@@ -10,11 +10,13 @@ import {
   DeferredPublication,
 } from "./application/publishing.service";
 import { PrismaService } from "./infrastructure/prisma.service";
+import { EditorialService } from "./application/editorial.service";
 async function main() {
   const app = await NestFactory.createApplicationContext(WorkerModule, {
     logger: ["error", "warn", "log"],
   });
   const publisher = app.get(PublishingService),
+    editorial = app.get(EditorialService),
     db = app.get(PrismaService),
     id = randomBytes(8).toString("hex");
   const worker = new Worker(
@@ -56,6 +58,7 @@ async function main() {
         update: { lastSeen: new Date() },
       });
       await publisher.reconcile();
+      await editorial.tick();
     } catch {
       console.error(
         JSON.stringify({

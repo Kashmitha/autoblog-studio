@@ -15,6 +15,7 @@ import { SearchConsoleController } from "./api/search-console.controller";
 import { PerformanceController } from "./api/performance.controller";
 import { TrafficSyncController } from "./api/traffic-sync.controller";
 import { FetchDiagnosticsController } from "./api/fetch-diagnostics.controller";
+import { EditorialModule } from "./modules/editorial.module";
 @Module({
   imports: [
     DatabaseModule,
@@ -23,6 +24,7 @@ import { FetchDiagnosticsController } from "./api/fetch-diagnostics.controller";
     MetricsModule,
     IntegrationsModule,
     PublishingModule,
+    EditorialModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 180 }]),
   ],
   controllers: [

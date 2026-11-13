@@ -838,6 +838,32 @@ test("cloud scheduling requires authentication and CSRF", async () => {
     .expect(403);
 });
 
+test("automatic cloud requests enforce pinned destination, photo policy and local pause before uploading", async () =>
+  withCloud(async (f) => {
+    await expect(
+      f.cloud.schedule(f.id, f.at, {
+        automatic: true,
+        expectedBlogId: "different-blog",
+      }),
+    ).rejects.toThrow("selected blog changed");
+    await expect(
+      f.cloud.schedule(f.id, f.at, {
+        automatic: true,
+        expectedBlogId: "cloud-blog",
+        expectedPhotoId: "missing-photo",
+      }),
+    ).rejects.toThrow("photo pool approval changed");
+    await expect(
+      f.cloud.schedule(f.id, f.at, {
+        automatic: true,
+        expectedBlogId: "cloud-blog",
+      }),
+    ).rejects.toThrow("automation is paused");
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(0);
+  }));
+
 test("Blogger accepts a future schedule while local automation is paused; local edits, cancel and worker replay cannot duplicate it", async () =>
   withCloud(async (f) => {
     const before = await publisher.queue.getJobCounts("delayed", "waiting");

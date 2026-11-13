@@ -236,7 +236,22 @@ export class ArticlesService {
           status: a.status,
           publishingTarget: "local",
         },
-        data: { status: to, approvedAt: to === "APPROVED" ? new Date() : null },
+        data: {
+          status: to,
+          approvedAt: to === "APPROVED" ? new Date() : null,
+          ...(to === "APPROVED"
+            ? {
+                generation: {
+                  ...(a.generation as Prisma.JsonObject),
+                  editorialApproval: {
+                    kind: "HUMAN_REVIEW",
+                    version: a.version,
+                    at: new Date().toISOString(),
+                  },
+                },
+              }
+            : {}),
+        },
       });
       if (!changed.count)
         throw new ConflictException("Article changed during review.");

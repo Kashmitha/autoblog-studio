@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { DateTime } from "luxon";
-import sanitizeHtml from "sanitize-html";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../infrastructure/prisma.service";
 import { AiProvider } from "../infrastructure/ai.provider";
@@ -8,6 +7,7 @@ import { ArticlesService } from "./articles.service";
 import { publicGet } from "../infrastructure/public-http";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
+import { referenceExcerpt } from "../domain/research";
 @Injectable()
 export class AiService {
   constructor(
@@ -15,7 +15,7 @@ export class AiService {
     private readonly articles: ArticlesService,
     private readonly provider: AiProvider,
   ) {}
-  async generate(dto: GenerateDto) {
+  async generate(dto: GenerateDto, expectedVersion?: number) {
     if (
       process.env.AI_ENABLED !== "true" ||
       process.env.AI_BILLING_AUTHORIZED !== "true" ||
@@ -45,6 +45,10 @@ export class AiService {
       orderBy: { updatedAt: "desc" },
     });
     let a = dto.articleId ? await this.articles.get(dto.articleId) : null;
+    if (a && expectedVersion !== undefined && a.version !== expectedVersion)
+      throw new BadRequestException(
+        "Article changed before generation. No provider request was sent.",
+      );
     if (dto.task === "draft" && !a)
       throw new BadRequestException(
         "Select an article with reviewed primary sources first.",
@@ -72,9 +76,7 @@ export class AiService {
         research.push({
           url: source.url,
           supports: source.note,
-          text: sanitizeHtml(r.body, { allowedTags: [], allowedAttributes: {} })
-            .replace(/\s+/g, " ")
-            .slice(0, 3500),
+          text: referenceExcerpt(r.body),
         });
       }
     }
@@ -87,7 +89,7 @@ export class AiService {
       instructions:
         dto.task === "topics"
           ? "Propose five specific nonduplicative tutorials. Do not claim verified search demand; leave draft fields empty."
-          : "Create a research-based original draft with cited supplied URLs, structured outline, excerpt, labels, internal links to relevant supplied published URLs, image terms and explicit uncertainty list. Require human code verification. Avoid unsupported first-person statements.",
+          : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Identify unverified code or claims in uncertainties. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
       research,
     });
     if (Buffer.byteLength(prompt) > 32000)
