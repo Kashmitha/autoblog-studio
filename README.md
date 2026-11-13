@@ -60,6 +60,7 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 - [Portable content archive](docs/CONTENT_ARCHIVE.md)
 - [Adsterra reports and saved history](docs/AD_REPORTS.md)
 - [Weekly review and next actions](docs/WEEKLY_REVIEW.md)
+- [Public traffic audit, prepared content and Blogger fixes](docs/TRAFFIC_ACTIONS.md)
 - [Automated text, real-photo selection and Blogger scheduling](docs/EDITORIAL_PIPELINE.md)
 - [Completed-feature GitHub checkpoints](docs/GITHUB_WORKFLOW.md)
 - [Integration contracts & official sources](docs/INTEGRATIONS.md)
