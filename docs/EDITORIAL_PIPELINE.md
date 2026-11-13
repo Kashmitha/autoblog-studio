@@ -10,6 +10,16 @@ The working installation has eight empty Git reference briefs. Existing publishe
 
 ## Activate in order
 
+### Prepare before configuring AI
+
+You can postpone the text API key. Automation shows **Prepare now; connect AI later** whenever paid text generation is unavailable. It reads actual ready-brief and eligible-photo counts, links to each empty brief and provides routes to the editor, media search and calendar. These links do not generate text, approve articles or publish posts. Missing text credentials do not prevent manually writing, reviewing or scheduling prepared articles through the existing editor.
+
+Media library now explains which fields the provider search fills and which need owner review. Start from **Review & import** on a search result so creator, source, license and Unsplash photo ID remain attached. Unsplash search/import is disabled when its configuration cannot be confirmed; the form explains a missing Access Key or missing API photo ID before submission. Commons remains available without that key. Links to a prepared image search prefill the subject/provider but do not make a provider request until **Search images** is clicked. Imported images still need manual article attachment or separate photo-pool review.
+
+The generation queue button explains its disabled state and remains disabled when preparation blockers exist, including when a previously enabled workflow later loses provider readiness. No billing, API credentials or workflow settings are changed by this preparation UI.
+
+### Activate paid preparation when ready
+
 1. Review the starter briefs in Articles. Their official documentation links are reference starting points; the supplied scope notes do not claim completed fact-checking or command execution. You can supply your own empty briefs with at least two primary sources and support notes. Optional **Refill an empty brief queue** rotates curated Git documentation packs and asks the same draft call for a fresh supported question. Refill currently covers Git only; it makes no keyword-demand claim and needs no separate planning model call.
 2. In Media library, import real photographs from Wikimedia Commons or upload your original photos. Check the actual photograph, license, author/source attribution, relevance and public HTTPS delivery URL. In Automation, select each photo, add accurate subject keywords, confirm its real-photo rights and allow it into the automatic pool. The application cannot establish that a file is a real photograph from appearance or metadata alone; this owner review is required. Reviews expire after 90 days. Photos used by another recent pipeline article, published article or scheduled article are excluded for seven days. Provide a varied pool, roughly fourteen relevant photos for a week's two-per-day target.
 3. Privately configure `AI_API_KEY`, current input/output token prices, `AI_ENABLED=true` and `AI_BILLING_AUTHORIZED=true` only after accepting API charges. A ChatGPT subscription does not supply API credits. Keep `AI_MONTHLY_LIMIT_USD=3` or another explicitly authorized limit; both the spending reservation and daily-generation cap still apply. Never paste keys into chat or commit `.env`. Recreate backend and worker after environment changes.

@@ -238,6 +238,23 @@ test("disabled provider blockers and manual Unsplash boundary are visible withou
   await expect(
     panel.getByText("Before enabling:", { exact: true }),
   ).toBeVisible();
+  const preparation = panel.getByRole("region", {
+    name: "Prepare without an AI key",
+  });
+  await expect(
+    preparation.getByText("Prepare now; connect AI later"),
+  ).toBeVisible();
+  await expect(
+    preparation.getByRole("link", { name: "Find real photographs" }),
+  ).toHaveAttribute("href", "/media?provider=wikimedia&q=laptop%20keyboard");
+  await expect(
+    preparation.getByRole("link", { name: "Write or review articles" }),
+  ).toHaveAttribute("href", "/articles");
+  await expect(
+    panel.getByText("Prepare next future slot is unavailable", {
+      exact: false,
+    }),
+  ).toBeVisible();
   await expect(
     panel.getByText("Unsplash's current API guidelines", { exact: false }),
   ).toBeVisible();

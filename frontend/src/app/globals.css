@@ -2477,6 +2477,17 @@ tr:last-child td {
 .editorial-pipeline .checkbox-label {
   margin: 10px 0;
 }
+.preparation-checklist {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+  overflow-wrap: anywhere;
+}
+.preparation-checklist li {
+  margin: 8px 0;
+}
 @media (max-width: 1100px) {
   .weekly-review-grid {
     grid-template-columns: minmax(0, 1fr);

@@ -103,6 +103,74 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               : "Not seen"}
             .
           </p>
+          {!data.paidReady && (
+            <section
+              className="preparation-checklist"
+              aria-label="Prepare without an AI key"
+            >
+              <h3>Prepare now; connect AI later</h3>
+              <p>
+                An AI key is needed to generate new text automatically. You can
+                prepare briefs, write articles, review photographs and schedule
+                approved articles using the existing article editor now.
+              </p>
+              <ul>
+                <li>
+                  {data.readyBriefs.length} source-backed empty briefs ready for
+                  writing.
+                </li>
+                <li>
+                  {data.pool.filter((photo) => photo.eligible).length}{" "}
+                  photographs eligible for automatic selection. Eligibility does
+                  not guarantee a relevant, unused match for every article.
+                </li>
+                <li>
+                  Paid generation is unavailable. Keep its settings off until
+                  you are ready to configure billing.
+                </li>
+              </ul>
+              {data.readyBriefs.length > 0 && (
+                <details>
+                  <summary>Open a ready brief</summary>
+                  <ul>
+                    {data.readyBriefs.map((brief) => (
+                      <li key={brief.id}>
+                        <Link
+                          className="text-link"
+                          href={`/articles/${brief.id}`}
+                        >
+                          {brief.title}
+                        </Link>
+                        <span className="small subtle">
+                          {" "}
+                          · {brief.sources} reference URLs
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <div className="inline wrap">
+                <Link className="text-link" href="/articles">
+                  Write or review articles
+                </Link>
+                <Link
+                  className="text-link"
+                  href="/media?provider=wikimedia&q=laptop%20keyboard"
+                >
+                  Find real photographs
+                </Link>
+                <Link className="text-link" href="/calendar">
+                  Check existing schedules
+                </Link>
+              </div>
+              <p className="small subtle">
+                These links do not generate, approve or publish anything.
+                Blogger-hosted schedules already accepted by Google do not need
+                an AI key.
+              </p>
+            </section>
+          )}
           <div className="two-column">
             <div>
               <h3>1. Source-backed briefs</h3>
@@ -370,7 +438,11 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
             </button>
             <button
               className="secondary"
-              disabled={a.busy || !data.settings.enabled}
+              disabled={
+                a.busy ||
+                !data.settings.enabled ||
+                data.draftBlockers.length > 0
+              }
               onClick={() =>
                 a.run(async () => {
                   const result = await post<{ queued: boolean; note?: string }>(
@@ -388,6 +460,13 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               Prepare next future slot
             </button>
           </div>
+          {(!data.settings.enabled || data.draftBlockers.length > 0) && (
+            <p className="small subtle">
+              Prepare next future slot is unavailable until the workflow is
+              enabled and its preparation blockers are cleared. You can continue
+              writing and reviewing articles in the editor.
+            </p>
+          )}
           <h3>Run history</h3>
           {data.runs.length ? (
             <div className="table-scroll">
