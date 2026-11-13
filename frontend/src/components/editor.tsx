@@ -23,6 +23,7 @@ import { Badge, Empty, Field, Modal, Notice } from "./ui";
 import { ResourceState, niches, ViewProps } from "./views";
 import { ArticleIndexing } from "./indexing";
 import { InternalLinks } from "./internal-links";
+import { ArticlePhotoPicker } from "./article-photo-picker";
 export default function Editor({
   id,
   notify,
@@ -758,33 +759,24 @@ export default function Editor({
                   </div>
                 ))}
                 {!locked && (
-                  <Field label="Attach / replace with licensed image">
-                    <select
-                      value=""
-                      disabled={a.busy || dirty}
-                      onChange={(e) => {
-                        if (e.target.value)
-                          void a.run(async () => {
-                            await post("/articles/" + id + "/media", {
-                              mediaId: e.target.value,
-                            });
-                            await r.reload();
-                          }, "Image attached. Recheck the preview before approval.");
-                      }}
-                    >
-                      <option value="">Select from media library</option>
-                      {library.data
-                        ?.filter(
-                          (m) =>
-                            !article.media?.some((x) => x.media.id === m.id),
-                        )
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.title}
-                          </option>
-                        ))}
-                    </select>
-                  </Field>
+                  <ArticlePhotoPicker
+                    key={id}
+                    photos={library.data}
+                    loading={library.loading}
+                    error={library.error}
+                    busy={a.busy}
+                    dirty={dirty}
+                    attachedIds={
+                      article.media?.map(({ media }) => media.id) || []
+                    }
+                    onReload={() => void library.reload()}
+                    onAttach={(mediaId) =>
+                      void a.run(async () => {
+                        await post("/articles/" + id + "/media", { mediaId });
+                        await r.reload();
+                      }, "Image attached. Recheck the preview before approval.")
+                    }
+                  />
                 )}
                 <Link className="text-link small" href="/media">
                   Open media library
