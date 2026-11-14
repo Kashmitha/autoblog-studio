@@ -52,6 +52,7 @@ import {
   Preferences,
 } from "./views";
 import Editor from "./editor";
+import { PrinterStar } from "./foundry";
 const navigation = [
   {
     label: "Workspace",
@@ -231,7 +232,42 @@ export default function Studio() {
   }, [auth, notify]);
   useEffect(() => {
     setMobile(false);
+    document
+      .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+      .forEach((menu) => {
+        menu.open = false;
+      });
   }, [path]);
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => {
+      if (window.matchMedia("(max-width: 760px)").matches) return;
+      document
+        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+        .forEach((menu) => {
+          if (!menu.contains(event.target as Node)) menu.open = false;
+        });
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (mobile) {
+        setMobile(false);
+        document.querySelector<HTMLButtonElement>(".mobile-menu")?.focus();
+        return;
+      }
+      document
+        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+        .forEach((menu) => {
+          menu.open = false;
+          menu.querySelector("summary")?.focus();
+        });
+    };
+    document.addEventListener("pointerdown", closeMenus);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenus);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [mobile]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -352,12 +388,19 @@ export default function Studio() {
         <div className="sidebar-overlay" onClick={() => setMobile(false)} />
       )}
       <aside className={"sidebar " + (mobile ? "mobile-open" : "")}>
+        <button
+          className="icon-button close-navigation"
+          aria-label="Close navigation"
+          onClick={() => setMobile(false)}
+        >
+          <X size={18} />
+        </button>
         <Link href="/" className="brand">
           <div className="brand-symbol">
-            <Command size={23} />
+            <PrinterStar />
           </div>
           <div>
-            AutoBlog<span>Studio</span>
+            AutoBlog<span>Studio / editorial workspace</span>
           </div>
         </Link>
         <div className="workspace-select">
@@ -370,31 +413,40 @@ export default function Studio() {
         </div>
         <nav aria-label="Main navigation">
           {navigation.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <div className="nav-caption">{group.label}</div>
-              {group.items.map((item) => (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={
-                    "nav-item " +
-                    ((
-                      item.path === "/"
-                        ? path === "/"
-                        : path.startsWith(item.path)
-                    )
-                      ? "active"
-                      : "")
-                  }
-                >
-                  <item.icon size={18} />
-                  {item.name}
-                  {item.path === "/generator" && (
-                    <span className="nav-ai">AI</span>
-                  )}
-                </Link>
-              ))}
-            </div>
+            <details
+              className="nav-group"
+              key={group.label}
+              open={mobile || undefined}
+            >
+              <summary className="nav-caption">
+                {group.label}
+                <ChevronDown size={13} />
+              </summary>
+              <div className="nav-menu">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    className={
+                      "nav-item " +
+                      ((
+                        item.path === "/"
+                          ? path === "/"
+                          : path.startsWith(item.path)
+                      )
+                        ? "active"
+                        : "")
+                    }
+                  >
+                    <item.icon size={18} />
+                    {item.name}
+                    {item.path === "/generator" && (
+                      <span className="nav-ai">AI</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </details>
           ))}
         </nav>
         <div className="sidebar-bottom">
@@ -485,7 +537,11 @@ export default function Studio() {
         </header>
         <main
           id="main"
-          className={"content " + (isEditor ? "editor-content" : "")}
+          className={
+            "content " +
+            (path === "/" ? "overview-content " : "") +
+            (isEditor ? "editor-content" : "")
+          }
         >
           {path === "/" ? (
             <Overview {...props} />

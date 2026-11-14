@@ -48,6 +48,7 @@ import { IndexingOverview } from "./indexing";
 import { WeeklyReview } from "./weekly-review";
 import { EditorialPipeline } from "./editorial-pipeline";
 import { ContentBacklog } from "./content-backlog";
+import { FoundryHero, DeskNavigation } from "./foundry";
 export { Connections } from "./connections";
 export { Finance, Traffic, Jobs } from "./finance-views";
 export { MediaLibrary, Help, Preferences } from "./media-help";
@@ -118,21 +119,9 @@ export function Overview({ notify, integrations }: ViewProps) {
   }).format(new Date());
   return (
     <>
-      <PageHeading
-        eyebrow="YOUR PUBLISHING WORKSPACE"
-        title="Publishing overview"
-        description="Track your articles, publishing queue and measured results."
-      >
-        <Link className="button secondary" href="/calendar">
-          <CalendarDays size={16} />
-          View calendar
-        </Link>
-        <Link className="button primary" href="/articles?new=1">
-          <Plus size={17} />
-          New article
-        </Link>
-      </PageHeading>
-      <div className="overview-meta">
+      <FoundryHero />
+      <DeskNavigation />
+      <div className="overview-meta" id="publishing-desk">
         <span>
           <span className="status-dot" />
           Your studio at a glance

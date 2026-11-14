@@ -2,7 +2,7 @@
 
 Last updated: 14 November 2026, Asia/Colombo.
 
-The Studio interface now replaces the separate marketing page at the owner's request. The workspace has self-hosted Inter, a neutral slate/emerald visual system, compact navigation, direct task headings and consistent desktop/mobile light/dark controls. `/welcome` redirects to the existing `/` homepage. See [Studio design](STUDIO_DESIGN.md). The earlier landing-page checkpoint below is historical and superseded.
+The current Studio follows the owner's supplied Seraph Foundry ZIP: the same Grenze Gotisch and Poppins fonts, ivory paper, forest/chartreuse inks, large specimen headings, line engraving, swashes and ruled panels. A full-width masthead and functional Workspace/Publishing/Insights menus replace the sidebar on desktop. The earlier neutral Inter redesign and standalone marketing page are superseded. `/welcome` still redirects to the only homepage at `/`. See [Studio design](STUDIO_DESIGN.md).
 
 ## Completed
 
