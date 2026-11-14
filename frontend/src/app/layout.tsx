@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./studio-refresh.css";
 export const metadata: Metadata = {
   title: "AutoBlog Studio · Your publishing workspace",
   description:

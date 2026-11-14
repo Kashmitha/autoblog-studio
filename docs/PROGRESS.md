@@ -1,6 +1,8 @@
 # Progress
 
-Last updated: 13 November 2026, Asia/Colombo.
+Last updated: 14 November 2026, Asia/Colombo.
+
+The Studio interface now replaces the separate marketing page at the owner's request. The workspace has self-hosted Inter, a neutral slate/emerald visual system, compact navigation, direct task headings and consistent desktop/mobile light/dark controls. `/welcome` redirects to the existing `/` homepage. See [Studio design](STUDIO_DESIGN.md). The earlier landing-page checkpoint below is historical and superseded.
 
 ## Completed
 

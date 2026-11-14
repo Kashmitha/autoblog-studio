@@ -34,7 +34,7 @@ export function Connections({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="CONNECTED, ON YOUR TERMS"
-        title="A studio that works with your tools."
+        title="Blog connections"
         description="Credentials stay on the backend. Your accounts remain under your control."
       />
       <ResourceState {...r} />
