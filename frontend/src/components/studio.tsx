@@ -152,9 +152,13 @@ export default function Studio() {
     if (!auth) return;
     void post<{ results: { error?: string }[] }>("/blogger/sync")
       .then((result) => {
+        const reconnect = result.results.find((r) =>
+          r.error?.includes("Reconnect Google"),
+        )?.error;
         if (result.results.some((r) => r.error))
           notify(
-            "Some Blogger statuses could not be refreshed. Open the article for details.",
+            reconnect ||
+              "Some Blogger statuses could not be refreshed. Open the article for details.",
             true,
           );
       })
