@@ -5,6 +5,13 @@ import { randomBytes } from "node:crypto";
 import { PrismaService } from "./prisma.service";
 import { decrypt, encrypt } from "../domain/security";
 import { requireSecret } from "../config";
+export class GoogleReconnectRequiredException extends BadRequestException {
+  constructor() {
+    super(
+      "Google access has expired or been revoked. Open Blog connections and choose Reconnect Google, sign in with the same blog-owning account, then test the connection and retry scheduling. Your saved articles and approvals are kept.",
+    );
+  }
+}
 @Injectable()
 export class GoogleService {
   constructor(private readonly db: PrismaService) {}
@@ -124,7 +131,15 @@ export class GoogleService {
       ),
     );
     client.setCredentials(tokens);
-    await client.getAccessToken();
+    try {
+      await client.getAccessToken();
+    } catch (error) {
+      const code = (error as { response?: { data?: { error?: unknown } } })
+        ?.response?.data?.error;
+      if (code === "invalid_grant")
+        throw new GoogleReconnectRequiredException();
+      throw error;
+    }
     await this.db.integration.updateMany({
       // A refresh started before a new OAuth grant must not overwrite that
       // newer account/permission choice when its network request finishes.

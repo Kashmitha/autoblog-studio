@@ -1,6 +1,6 @@
 # Get a Groq key privately
 
-The landing page requires no API key. When ready for the separate Groq integration:
+The Studio interface requires no AI API key. When ready for the separate Groq integration:
 
 1. Sign in to your own account at [Groq Console → API Keys](https://console.groq.com/keys).
 2. Verify the organization/project is the one you want and stays on the **Free** plan. Upgrading to Developer introduces usage billing.

@@ -8,6 +8,7 @@ import { DateTime } from "luxon";
 import { PrismaService } from "../infrastructure/prisma.service";
 import {
   GoogleService,
+  GoogleReconnectRequiredException,
   LiveBloggerAdapter,
 } from "../infrastructure/blogger.service";
 import { ArticlesService } from "./articles.service";
@@ -578,9 +579,11 @@ export class CloudPublishingService {
       try {
         const synced = await this.locked(() => this.syncOneLocked(a.id));
         results.push({ id: a.id, status: synced.status });
-      } catch {
+      } catch (cause) {
         const error =
-          "Could not confirm Blogger status. Check the connected account and selected blog, then sync again. The last confirmed status is retained.";
+          cause instanceof GoogleReconnectRequiredException
+            ? cause.message
+            : "Could not confirm Blogger status. Check the connected account and selected blog, then sync again. The last confirmed status is retained.";
         await this.db.article.updateMany({
           where: { id: a.id, publishingTarget: "blogger" },
           data: { remoteSyncError: error },

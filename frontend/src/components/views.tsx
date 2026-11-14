@@ -48,6 +48,7 @@ import { IndexingOverview } from "./indexing";
 import { WeeklyReview } from "./weekly-review";
 import { EditorialPipeline } from "./editorial-pipeline";
 import { ContentBacklog } from "./content-backlog";
+import { FoundryHero, DeskNavigation } from "./foundry";
 export { Connections } from "./connections";
 export { Finance, Traffic, Jobs } from "./finance-views";
 export { MediaLibrary, Help, Preferences } from "./media-help";
@@ -118,21 +119,9 @@ export function Overview({ notify, integrations }: ViewProps) {
   }).format(new Date());
   return (
     <>
-      <PageHeading
-        eyebrow="YOUR PUBLISHING WORKSPACE"
-        title="A little consistency. A lot of possibility."
-        description="Create useful content, build a readership, and see what’s working."
-      >
-        <Link className="button secondary" href="/calendar">
-          <CalendarDays size={16} />
-          View calendar
-        </Link>
-        <Link className="button primary" href="/articles?new=1">
-          <Plus size={17} />
-          New article
-        </Link>
-      </PageHeading>
-      <div className="overview-meta">
+      <FoundryHero />
+      <DeskNavigation />
+      <div className="overview-meta" id="publishing-desk">
         <span>
           <span className="status-dot" />
           Your studio at a glance
@@ -588,8 +577,8 @@ export function Articles({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="EDITORIAL"
-        title="Make something worth reading."
-        description="From a small idea to a published article, all in one place."
+        title="Articles"
+        description="Write, review and manage your publication."
       >
         <button
           className="primary"
@@ -747,7 +736,7 @@ export function Planner({ notify, integrations }: ViewProps) {
     <>
       <PageHeading
         eyebrow="IDEAS WITH INTENT"
-        title="Start with a real question."
+        title="Topic planner"
         description="Plan useful tutorials around what a reader needs to do next."
       />
       <div className="two-column">
@@ -853,7 +842,7 @@ export function Generator({ notify, integrations }: ViewProps) {
     <>
       <PageHeading
         eyebrow="AI, WITH EDITORIAL CARE"
-        title="A starting point. Still your voice."
+        title="Article generator"
         description="Turn reviewed research into a draft, then bring your judgment and experience."
       />
       <div className="two-column">
@@ -959,7 +948,7 @@ export function Calendar({ notify, integrations }: ViewProps) {
     <>
       <PageHeading
         eyebrow="A STEADY RHYTHM"
-        title="Give good content its moment."
+        title="Publishing calendar"
         description="Schedule approved work. Times are always shown in Asia/Colombo."
       >
         <button
@@ -1219,7 +1208,7 @@ export function Automation({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="PUBLISHING ON YOUR TERMS"
-        title="Consistency, with a human in control."
+        title="Automation"
         description="Your approved backlog powers automation. Quality always decides what can publish."
       />
       <ResourceState {...r} />

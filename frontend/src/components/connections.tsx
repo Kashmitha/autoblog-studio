@@ -34,7 +34,7 @@ export function Connections({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="CONNECTED, ON YOUR TERMS"
-        title="A studio that works with your tools."
+        title="Blog connections"
         description="Credentials stay on the backend. Your accounts remain under your control."
       />
       <ResourceState {...r} />
@@ -103,7 +103,27 @@ export function Connections({ notify }: ViewProps) {
                     >
                       Load owned blogs
                     </button>
+                    <button
+                      className="secondary"
+                      disabled={a.busy || !d.googleConfigured}
+                      onClick={() =>
+                        a.run(async () => {
+                          const result = await api<{ url: string }>(
+                            "/integrations/google/connect",
+                          );
+                          window.location.href = result.url;
+                        })
+                      }
+                    >
+                      <Link2 size={15} />
+                      Reconnect Google
+                    </button>
                   </div>
+                  <p className="small subtle spaced">
+                    If access expires, reconnect with the same Google account
+                    that owns this blog. Your selected blog and saved article
+                    approvals are kept.
+                  </p>
                   {blogs.length > 0 && (
                     <>
                       <Field label="Owned blog">
