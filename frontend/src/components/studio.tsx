@@ -12,7 +12,6 @@ import {
   ChevronDown,
   CircleDollarSign,
   CircleHelp,
-  Command,
   FileText,
   FlaskConical,
   Gauge,
@@ -52,7 +51,7 @@ import {
   Preferences,
 } from "./views";
 import Editor from "./editor";
-import { PrinterStar } from "./foundry";
+import { StudioMark } from "./studio-mark";
 const navigation = [
   {
     label: "Workspace",
@@ -300,7 +299,7 @@ export default function Studio() {
     return (
       <div className="loading-screen">
         <div className="brand-symbol">
-          <Command size={25} />
+          <StudioMark />
         </div>
         <p>Opening AutoBlog Studio…</p>
       </div>
@@ -311,7 +310,7 @@ export default function Studio() {
         <section className="login-story">
           <div className="brand">
             <div className="brand-symbol">
-              <Command size={25} />
+              <StudioMark />
             </div>
             AutoBlog<span>Studio</span>
           </div>
@@ -339,7 +338,7 @@ export default function Studio() {
         <section className="login-form">
           <div className="login-card">
             <div className="brand-symbol small-brand">
-              <Command size={22} />
+              <StudioMark />
             </div>
             <h2>Welcome to your studio</h2>
             <p className="subtle">Sign in to plan, create, and publish.</p>
@@ -401,10 +400,10 @@ export default function Studio() {
         </button>
         <Link href="/" className="brand">
           <div className="brand-symbol">
-            <PrinterStar />
+            <StudioMark />
           </div>
           <div>
-            AutoBlog<span>Studio / editorial workspace</span>
+            AutoBlog<span>STUDIO</span>
           </div>
         </Link>
         <div className="workspace-select">

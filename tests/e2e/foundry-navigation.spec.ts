@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("template navigation opens by keyboard, dismisses, reaches Studio tools and works on a narrow screen", async ({
+test("Studio navigation opens by keyboard, dismisses, reaches Studio tools and works on a narrow screen", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -55,17 +55,17 @@ test("template navigation opens by keyboard, dismisses, reaches Studio tools and
     page.getByRole("heading", { name: "Media library", exact: true }),
   ).toBeVisible();
   await page.evaluate(async () => {
-    await document.fonts.load('500 60px "Grenze Gotisch"');
-    await document.fonts.load("400 13px Poppins");
+    await document.fonts.load("600 46px Poppins");
+    await document.fonts.load("400 15px Inter");
   });
   expect(
     await page.locator("h1").evaluate((el) => getComputedStyle(el).fontFamily),
-  ).toContain("Grenze Gotisch");
+  ).toContain("Poppins");
   expect(
     await page
       .locator("body")
       .evaluate((el) => getComputedStyle(el).fontFamily),
-  ).toContain("Poppins");
+  ).toContain("Inter");
   await page.setViewportSize({ width: 320, height: 800 });
   await expect(nav).not.toBeVisible();
   await page.getByRole("button", { name: "Open navigation" }).click();

@@ -1,15 +1,29 @@
-# Studio design: supplied Seraph template
+﻿# Studio design: glass workspace
 
-The only homepage is the existing owner workspace at `/`. The rejected marketing page, its illustrations and animation code have been removed; `/welcome` redirects to `/`. Authentication and all backend publishing controls are preserved.
+The only homepage remains the owner workspace at `/`; `/welcome` redirects to it. The current owner-requested enhancement replaces the paper/blackletter presentation with a glass treatment inspired by the supplied Raycast reference. Existing navigation, authentication, articles, media, reporting and publishing controls retain their behavior.
 
-The current design follows the owner's `font-launch-landing-page-v1.zip`, specifically its Seraph Foundry type specimen. This supersedes the earlier neutral dashboard styling. The archive was inspected as reference material; its scripts were not executed and its typeface shop, prices, licensing cart and fictional foundry text were not imported into Studio.
+## Visual system
 
-The template's actual Grenze Gotisch variable display face and Poppins body faces are self-hosted, with their SIL Open Font Licenses. The current palette is warm ivory paper (`#faf7f0`), midnight navy ink (`#202b45`), cobalt (`#344c9c`) and muted gold (`#f0c977`). The original green adaptation is superseded at the owner's request. Oversized blackletter headings, a tinted overprint band, four-point ornaments, calligraphic swashes and fine rules retain the specimen's visual language. The book-and-quill engraving is an original SVG; no AI-generated or third-party photograph is used in the interface.
+- Light: pearl `#f5f2f6`, charcoal text `#282331`, muted burgundy accent `#963651`.
+- Dark: charcoal `#141219`, warm white text `#f7f1f6`, coral accent `#f5acb7`.
+- Plum/coral ambient glows sit behind frosted panels, fine borders and restrained shadows. Panels are approximately 91% opaque so the effect does not compromise dense text. Navigation menus are more opaque; text fields and dialogs use solid surfaces.
+- Self-hosted Poppins headings and Inter body/controls, with existing font licenses. Article titles are 16px (15px on mobile); functional buttons/menu labels 14px; statuses 12px. The previous blackletter display face is superseded.
+- The original folded-page/A vector monogram appears in the masthead, login, loading state and browser icon. The overview cover illustration is CSS/vector artwork, decorative and hidden from assistive technology. It is not a generated article photograph or a real publishing status.
 
-Readability takes priority over the specimen's microtype: article-list titles are 16px/600 (15px mobile), primary functional controls and desktop menu labels 14px, status badges 12px and main body copy 15px (14px mobile). Supporting labels, forms, report tables, filter controls and mobile actions are enlarged consistently. Existing controls reflow where needed; the template's fonts, composition, routes and behavior are preserved. The core light/dark text pairs were checked against [WCAG's 4.5:1 normal-text contrast guidance](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html): 21 measured pairings have a minimum of 5.72:1. This is targeted palette evidence, not a claim of a complete accessibility audit.
+The homepage remains functional: New article, View calendar and four editorial shortcuts lead to existing tools, with actual metrics below. No invented revenue, traffic, approval or scheduled-post counts are added. Existing article images and attribution are unchanged.
 
-The fixed sidebar has been replaced by a full-width masthead. Workspace, Publishing and Insights are native disclosure menus containing the existing Studio routes. Menus support keyboard opening, Escape, outside dismissal and automatic closing after navigation. On mobile the same routes appear in a drawer with explicit close and Escape controls. The homepage shortcuts lead to articles, media, calendar and search reports; New article and View calendar use the existing functions. Actual saved reporting and publishing controls remain below the overview specimen. Every other Studio screen adopts the template's display headings, Poppins controls, square paper panels, ruled tables and ink buttons. Dark mode, focus indicators and reduced motion are supported.
+`frontend/src/app/glass-studio.css` is the final theme layer over the existing layout styles. The new mark lives in `components/studio-mark.tsx` and `app/icon.svg`. No extra runtime library, remote font service or image API is needed.
 
-All reported data remains real; no presentation statistics or fabricated charts are added. The interface has no runtime dependency on Google Fonts or another font CDN. Existing article photographs and their attribution are unaffected by this interface design.
+## Readability and access
 
-No credentials, AI provider selection, billing, scheduling, article approval or public Blogger state are changed by this design. This is a frontend-only refresh, not a hosted multi-tenant SaaS deployment.
+The design follows the material principle of increasing opacity around dense content, informed by [Apple's materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials) and [color guidance](https://developer.apple.com/design/human-interface-guidelines/color). The supplied Raycast image guides mood and color, not a copied layout or branding.
+
+44 targeted text/background checks, including extreme black/white backgrounds underneath translucent surfaces, have a minimum ratio of 5.12:1. This exceeds the [WCAG normal-text reference of 4.5:1](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html). These measurements are palette checks, not a complete accessibility certification.
+
+Native menus retain keyboard opening, Escape/focus return, outside dismissal and route-change closing. The mobile drawer uses the same links. Focus rings remain visible, disabled controls remain distinguishable, and semantic success/warning/error colors are separately specified for both themes. Opaque fallbacks support reduced transparency, increased contrast and browsers without backdrop blur; reduced motion and forced colors are respected.
+
+## Product boundary
+
+This is a local frontend enhancement. It does not enable AI billing, resume automation, alter approval or Google checkpoints, upload articles, or change saved schedules. The existing Google reconnection requirement remains independent of the design.
+
+A future subscription product needs customer accounts, tenant isolation, per-customer encrypted integrations, billing/entitlements, durable hosted scheduling, operations and recovery, and a production security review. The UI refresh alone does not establish those capabilities.

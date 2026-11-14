@@ -4,7 +4,7 @@ Last updated: 14 November 2026, Asia/Colombo.
 
 Scheduling recovery: the current Google grant is expired/revoked (`invalid_grant`). The connected-card Reconnect Google action and actionable error handling are installed and tested. The owner must complete Google consent again, then Test connection, before scheduling can succeed. Both pending approved articles remain local without an upload attempt. No publication was retried during diagnosis.
 
-The current Studio follows the owner's supplied Seraph Foundry ZIP: the same Grenze Gotisch and Poppins fonts, warm ivory paper, midnight navy/cobalt inks and muted gold accents, large specimen headings, line engraving, swashes and ruled panels. Article titles, controls, statuses and navigation text are enlarged for readability; 21 core text/background pairings exceed 4.5:1 contrast. A full-width masthead and functional Workspace/Publishing/Insights menus replace the sidebar on desktop. The earlier green palette, neutral Inter redesign and standalone marketing page are superseded. `/welcome` still redirects to the only homepage at `/`. See [Studio design](STUDIO_DESIGN.md).
+The current Studio uses a glass workspace in pearl/charcoal, plum and coral, with self-hosted Poppins headings and Inter controls. A new folded-page/A vector logo and favicon, frosted panels, readable status colors and responsive navigation apply throughout. The owner workspace remains the only homepage. This replaces the previous paper/blackletter presentation; no publishing, AI billing or saved content changes are included. See [Studio design](STUDIO_DESIGN.md).
 
 ## Completed
 
