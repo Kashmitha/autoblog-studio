@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowRight,
+  ArrowUpRight,
   BookOpen,
   CalendarDays,
   CheckCheck,
@@ -303,6 +304,11 @@ export default function Studio() {
             </div>
             <h2>Welcome to your studio</h2>
             <p className="subtle">Sign in to plan, create, and publish.</p>
+            <p className="small">
+              <Link className="text-link" href="/welcome">
+                Discover AutoBlog Studio <ArrowUpRight size={13} />
+              </Link>
+            </p>
             <form onSubmit={login}>
               <Field label="Email address">
                 <input

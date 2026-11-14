@@ -54,7 +54,10 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 
 ## Documentation
 
+Public product preview: [AutoBlog Studio landing page](http://localhost:3100/welcome). The existing workspace remains at `/`.
+
 - [Setup & environment variables](docs/SETUP.md)
+- [Emerald landing-page design](docs/LANDING_PAGE.md) and [private Groq key preparation](docs/GROQ_KEY_SETUP.md)
 - [Send an approved Blogger draft for final SEO review](docs/BLOGGER_DRAFT_HANDOFF.md)
 - [Architecture](docs/ARCHITECTURE.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Progress & remaining work](docs/PROGRESS.md)
