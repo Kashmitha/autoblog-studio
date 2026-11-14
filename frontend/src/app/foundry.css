@@ -58,48 +58,48 @@ summary:focus-visible {
   font-display: swap;
 }
 :root {
-  --paper: #eeeee3;
-  --ink: #183e32;
-  --accent: #526f27;
-  --tint: #d9e5ae;
-  --lime: #d9ef8b;
+  --paper: #faf7f0;
+  --ink: #202b45;
+  --accent: #344c9c;
+  --tint: #e1e6f6;
+  --lime: #f0c977;
   --bg: var(--paper);
-  --panel: #f6f6ed;
+  --panel: #fffdf8;
   --text: var(--ink);
-  --muted: #626c56;
-  --subtle: #4b604d;
-  --line: #183e323b;
+  --muted: #596275;
+  --subtle: #455169;
+  --line: #202b453b;
   --green: var(--ink);
-  --green-dark: #244b36;
-  --soft: #e0e7c9;
-  --input: #f7f7ef;
+  --green-dark: #304483;
+  --soft: #e9edf8;
+  --input: #fffefa;
   --shadow: none;
-  --purple: #e2e4cf;
+  --purple: #e8e8f4;
   --orange: #f2e5c7;
-  --blue: #dbe5dd;
+  --blue: #e0e8f6;
   --radius: 0px;
   --display: "Grenze Gotisch", Georgia, serif;
   --label: Poppins, Arial, sans-serif;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --paper: #18281f;
-  --ink: #e4e8d4;
-  --accent: #c7df91;
-  --tint: #3c5734;
+  --paper: #141b2b;
+  --ink: #f4f0e8;
+  --accent: #b6c8ff;
+  --tint: #2d3c63;
   --bg: var(--paper);
-  --panel: #1d3025;
+  --panel: #1b2539;
   --text: var(--ink);
-  --muted: #b1bba1;
-  --subtle: #c3cbb3;
-  --line: #d6e0bf3b;
+  --muted: #bac3d5;
+  --subtle: #d0d7e5;
+  --line: #c7d4f03b;
   --green: var(--ink);
-  --green-dark: #c8d8a5;
-  --soft: #34492e;
-  --input: #1a2b21;
-  --purple: #3e4532;
+  --green-dark: #d0dcff;
+  --soft: #293752;
+  --input: #172034;
+  --purple: #36334f;
   --orange: #4b4230;
-  --blue: #2f463c;
+  --blue: #293d58;
   color-scheme: dark;
 }
 html {
@@ -284,7 +284,7 @@ button,
   padding: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 8px 8px 0 #183e3210;
+  box-shadow: 8px 8px 0 #202b4510;
 }
 .nav-item {
   border-radius: 0;
@@ -855,14 +855,14 @@ tbody tr:hover {
   border-radius: 50%;
 }
 .modal-backdrop {
-  background: #0b2115a8;
+  background: #101829b8;
   backdrop-filter: blur(4px);
 }
 .modal {
   border: 1px solid var(--ink);
   border-radius: 0;
   padding: 28px;
-  box-shadow: 12px 12px 0 #1024193b;
+  box-shadow: 12px 12px 0 #1018293b;
   background: var(--panel);
 }
 .modal h2 {
@@ -1433,17 +1433,17 @@ tbody tr:hover {
   background: var(--paper);
 }
 .desk-navigation {
-  background: #183e32;
-  color: #eeeee3;
+  background: #202b45;
+  color: #faf7f0;
 }
 .desk-navigation a {
-  border-color: #eeeee33b;
+  border-color: #faf7f03b;
 }
 .desk-navigation a:first-child {
-  border-color: #eeeee33b;
+  border-color: #faf7f03b;
 }
 .desk-navigation a:hover {
-  background: #2c503c;
+  background: #304264;
 }
 @media (max-width: 760px) {
   .sidebar:not(.mobile-open) {
@@ -1459,7 +1459,7 @@ tbody tr:hover {
     top: 15px;
   }
   .desk-navigation a:nth-child(n + 3) {
-    border-color: #eeeee33b;
+    border-color: #faf7f03b;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -1495,5 +1495,303 @@ tbody tr:hover {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Readability scale: functional text stays comfortably above specimen microtype. */
+:root[data-theme="dark"] .primary {
+  color: var(--paper);
+  background: var(--ink);
+}
+.recharts-area-curve {
+  stroke: var(--accent);
+}
+.recharts-surface stop {
+  stop-color: var(--accent);
+}
+.table-scroll {
+  position: relative;
+}
+body {
+  font-size: 15px;
+}
+button,
+.button,
+a.secondary {
+  font-size: 14px;
+  min-height: 44px;
+  line-height: 1.5;
+}
+.text-button,
+.text-link {
+  font-size: 14px;
+}
+.compact {
+  font-size: 13px;
+  min-height: 36px;
+}
+.nav-caption {
+  font-size: 14px;
+}
+.nav-item {
+  font-size: 14px;
+  min-height: 46px;
+}
+.nav-menu {
+  min-width: 270px;
+}
+.sidebar-bottom > .nav-item {
+  font-size: 12px;
+}
+.sidebar > nav {
+  gap: 24px;
+}
+.sidebar {
+  gap: 24px;
+}
+.brand span {
+  font-size: 10px;
+}
+.nav-ai {
+  font-size: 10px;
+}
+.breadcrumb {
+  font-size: 12px;
+}
+.environment-pill {
+  font-size: 11px;
+}
+.owner-avatar {
+  font-size: 11px;
+}
+.page-heading p {
+  font-size: 15px;
+}
+.eyebrow {
+  font-size: 12px;
+}
+.foundry-hero-kicker span,
+.foundry-editor-note > span {
+  font-size: 11px;
+}
+.foundry-scroll {
+  font-size: 12px;
+}
+.foundry-hero-actions .button {
+  font-size: 14px;
+}
+.foundry-hero-foot {
+  flex-wrap: wrap;
+}
+.desk-navigation a {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.overview-meta {
+  font-size: 12px;
+}
+.metric-top {
+  font-size: 14px;
+}
+.metric-detail {
+  font-size: 12px;
+}
+.panel-heading p,
+.field small {
+  font-size: 12px;
+}
+.panel-heading .text-link,
+.panel-heading button {
+  font-size: 14px;
+}
+.field > span {
+  font-size: 14px;
+}
+input,
+select,
+textarea {
+  font-size: 14px;
+  line-height: 1.6;
+}
+table {
+  font-size: 14px;
+}
+th {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.article-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+.filter-bar select,
+.filter-bar input,
+.search-field input {
+  font-size: 14px;
+}
+.small {
+  font-size: 12px;
+}
+.badge {
+  font-size: 12px;
+  padding: 6px 10px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.notice {
+  font-size: 13px;
+}
+.tabs button,
+.segmented button {
+  font-size: 14px;
+}
+.editor-body {
+  font-size: 15px;
+}
+.page-footer {
+  font-size: 12px;
+}
+.login-card .subtle,
+.login-help {
+  font-size: 13px;
+}
+@media (min-width: 761px) and (max-width: 1150px) {
+  .sidebar {
+    gap: 14px;
+    padding-inline: 3vw;
+  }
+  .sidebar > nav {
+    gap: 18px;
+  }
+  .sidebar-bottom > .nav-item {
+    font-size: 0;
+    padding: 8px;
+  }
+  .sidebar-bottom > .nav-item svg {
+    display: block;
+  }
+  .sidebar .brand {
+    font-size: 29px;
+  }
+  .brand span {
+    font-size: 8px;
+  }
+  .foundry-hero-actions {
+    max-width: 260px;
+  }
+  .desk-navigation a {
+    font-size: 13px;
+  }
+}
+@media (max-width: 760px) {
+  body {
+    font-size: 14px;
+  }
+  button,
+  .button,
+  a.secondary,
+  .page-actions button,
+  .page-actions .button,
+  .foundry-hero-actions .button {
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .nav-item {
+    font-size: 14px;
+    min-height: 46px;
+  }
+  .nav-caption,
+  .sidebar-bottom > .nav-item {
+    font-size: 12px;
+  }
+  .breadcrumb {
+    font-size: 11px;
+  }
+  .environment-pill {
+    font-size: 10px;
+  }
+  .topbar {
+    padding-inline: 14px;
+  }
+  .topbar-right {
+    gap: 5px;
+  }
+  .topbar .icon-button {
+    min-width: 32px;
+    min-height: 36px;
+  }
+  .page-heading p,
+  .notice {
+    font-size: 13px;
+  }
+  .eyebrow {
+    font-size: 11px;
+  }
+  .foundry-hero-kicker span,
+  .foundry-editor-note > span {
+    font-size: 10px;
+    line-height: 1.7;
+  }
+  .foundry-hero-kicker {
+    align-items: flex-start;
+  }
+  .foundry-hero-foot {
+    margin-left: 40%;
+  }
+  .foundry-editor-note > span {
+    position: relative;
+    display: block;
+    background: var(--paper);
+  }
+  .foundry-scroll {
+    font-size: 10px;
+  }
+  .desk-navigation a {
+    font-size: 12px;
+    padding-inline: 10px;
+  }
+  .overview-meta,
+  .metric-top {
+    font-size: 12px;
+  }
+  .metric-detail {
+    font-size: 11px;
+  }
+  .metric {
+    padding: 16px 14px;
+  }
+  .metric-top {
+    align-items: flex-start;
+  }
+  .metric-icon {
+    flex-shrink: 0;
+    width: 18px;
+  }
+  .panel-heading p,
+  .field small {
+    font-size: 12px;
+  }
+  .panel-heading {
+    flex-wrap: wrap;
+  }
+  .panel-heading button,
+  .panel-heading .text-link {
+    font-size: 13px;
+  }
+  .field > span {
+    font-size: 13px;
+  }
+  .article-title {
+    font-size: 15px;
+  }
+  .badge {
+    font-size: 12px;
+  }
+  th {
+    font-size: 11px;
+  }
+  td {
+    font-size: 13px;
   }
 }
