@@ -101,6 +101,7 @@ model Article {
   remoteSyncedAt DateTime?
   remoteSyncError String?
   draftAttemptedAt DateTime?
+  bloggerDraftHandoffAt DateTime?
   updateReminderAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -36,6 +36,8 @@ export default function Editor({
     [reason, setReason] = useState(""),
     [approve, setApprove] = useState(false),
     [schedule, setSchedule] = useState(false),
+    [handoffOpen, setHandoffOpen] = useState(false),
+    [handoffConfirmation, setHandoffConfirmation] = useState(""),
     [at, setAt] = useState(""),
     [firstTest, setFirstTest] = useState(false),
     [scheduleWhere, setScheduleWhere] = useState("blogger"),
@@ -145,6 +147,18 @@ export default function Editor({
                     Publish / schedule
                   </button>
                 )}
+              {canCloud && article.status === "APPROVED" && !locked && (
+                <button
+                  className="secondary"
+                  disabled={a.busy || dirty}
+                  onClick={() => {
+                    setHandoffConfirmation("");
+                    setHandoffOpen(true);
+                  }}
+                >
+                  Send to Blogger as draft
+                </button>
+              )}
               {article.status === "SCHEDULED" &&
                 article.publishingTarget !== "blogger" && (
                   <button
@@ -170,7 +184,10 @@ export default function Editor({
                   ? `Google has this post scheduled for ${formatDate(article.scheduledAt!, true)} · Asia/Colombo. Your computer can be off.`
                   : article.remoteStatus === "LIVE"
                     ? "Blogger confirmed this post is published."
-                    : "The remote schedule needs confirmation. Sync before taking further action."}
+                    : article.remoteStatus === "DRAFT" &&
+                        article.bloggerDraftHandoffAt
+                      ? "Blogger confirmed a draft. It is not scheduled or published. Finish review and choose publication in Blogger."
+                      : "The remote schedule needs confirmation. Sync before taking further action."}
               </p>
               <p className="subtle small">
                 {article.remoteSyncedAt
@@ -183,6 +200,43 @@ export default function Editor({
               </p>
               {article.remoteSyncError && (
                 <Notice tone="warning">{article.remoteSyncError}</Notice>
+              )}
+              {article.bloggerDraftHandoffAt && (
+                <div
+                  className="spaced"
+                  aria-label="Blogger metadata review"
+                  role="region"
+                >
+                  <h3>Finish the search settings in Blogger</h3>
+                  <ol className="help-list">
+                    <li>
+                      Open Manage on Blogger. Review the uploaded title, text,
+                      labels and any image credits.
+                    </li>
+                    <li>
+                      Set the post's Search description. Review this workspace
+                      summary before copying it; Studio does not set the Blogger
+                      field.
+                    </li>
+                    <li>
+                      If needed, set a custom permalink before the first
+                      publication. Preserve existing published URLs.
+                    </li>
+                    <li>
+                      Approve and schedule or publish in Blogger when ready,
+                      then use Sync Blogger status here. Pausing Studio does not
+                      cancel a Google-hosted schedule.
+                    </li>
+                  </ol>
+                  <Field label="Suggested search description (copy and review in Blogger)">
+                    <textarea readOnly value={article.excerpt} />
+                  </Field>
+                  <p className="small subtle">
+                    Studio keeps its content snapshot. Changes made in Blogger
+                    are not overwritten or imported by status sync. The handoff
+                    creates no local publishing job or reserved daily slot.
+                  </p>
+                </div>
               )}
               <div className="inline wrap">
                 <button
@@ -240,7 +294,10 @@ export default function Editor({
                         posts.filter(
                           (p) =>
                             p.title.trim() === article.title.trim() &&
-                            ["SCHEDULED", "LIVE"].includes(p.status),
+                            (article.bloggerDraftHandoffAt
+                              ? ["DRAFT", "SCHEDULED", "LIVE"]
+                              : ["SCHEDULED", "LIVE"]
+                            ).includes(p.status),
                         ),
                       );
                       setRemoteId("");
@@ -249,7 +306,9 @@ export default function Editor({
                     })
                   }
                 >
-                  Link a post already scheduled on Blogger
+                  {article.bloggerDraftHandoffAt
+                    ? "Recover existing Blogger draft or post"
+                    : "Link a post already scheduled on Blogger"}
                 </button>
               </div>
             )}
@@ -793,6 +852,67 @@ export default function Editor({
               </section>
             </aside>
           </div>
+          {handoffOpen && (
+            <Modal
+              title="Send an approved article as a Blogger draft"
+              onClose={() => setHandoffOpen(false)}
+            >
+              <Notice>
+                This uploads one draft to{" "}
+                {integrations?.google?.blogUrl || "the selected blog"}. It does
+                not publish or schedule it. Finish SEO settings and any later
+                content edits in Blogger; Studio editing locks after handoff.
+              </Notice>
+              <p>
+                <strong>{article.title}</strong> · Version {article.version}
+              </p>
+              <p className="small subtle">
+                A response failure may still leave a Blogger draft. Sync or
+                recover the existing copy; another draft will not be created
+                automatically.
+              </p>
+              <Field label="Type CREATE BLOGGER DRAFT">
+                <input
+                  value={handoffConfirmation}
+                  onChange={(event) =>
+                    setHandoffConfirmation(event.target.value)
+                  }
+                />
+              </Field>
+              <div className="form-actions">
+                <button
+                  className="secondary"
+                  disabled={a.busy}
+                  onClick={() => setHandoffOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary"
+                  disabled={
+                    a.busy ||
+                    dirty ||
+                    handoffConfirmation !== "CREATE BLOGGER DRAFT"
+                  }
+                  onClick={() =>
+                    a.run(async () => {
+                      try {
+                        await post(`/blogger/articles/${id}/draft`, {
+                          version: article.version,
+                          confirmation: handoffConfirmation,
+                        });
+                      } finally {
+                        setHandoffOpen(false);
+                        await refresh();
+                      }
+                    }, "Draft confirmed on Blogger. No publication was requested.")
+                  }
+                >
+                  Create draft on Blogger
+                </button>
+              </div>
+            </Modal>
+          )}
           {approve && (
             <Modal
               title="Your editorial approval"
@@ -893,8 +1013,11 @@ export default function Editor({
               </Field>
               {!matchingPosts.length && (
                 <Notice>
-                  No scheduled or published post with this exact title was found
-                  on the selected blog.
+                  No{" "}
+                  {article.bloggerDraftHandoffAt
+                    ? "draft, scheduled or published post"
+                    : "scheduled or published post"}{" "}
+                  with this exact title was found on the selected blog.
                 </Notice>
               )}
               <Field label="Type LINK EXISTING BLOGGER POST">

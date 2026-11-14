@@ -1142,3 +1142,187 @@ test("two concurrent cloud schedule requests upload only one post", async () =>
       }),
     ).toBe(1);
   }));
+
+test("draft handoff requires explicit confirmation, current approved version and CSRF", async () =>
+  withCloud(async (f) => {
+    await mutate("post", `/blogger/articles/${f.id}/draft`, {
+      version: 1,
+      confirmation: "wrong",
+    }).expect(400);
+    await mutate("post", `/blogger/articles/${f.id}/draft`, {
+      version: 2,
+      confirmation: "CREATE BLOGGER DRAFT",
+    }).expect(409);
+    await agent
+      .post(`/api/blogger/articles/${f.id}/draft`)
+      .set("Origin", origin)
+      .send({ version: 1, confirmation: "CREATE BLOGGER DRAFT" })
+      .expect(403);
+    await db.article.update({
+      where: { id: f.id },
+      data: { status: "NEEDS_REVIEW", approvedAt: null },
+    });
+    await mutate("post", `/blogger/articles/${f.id}/draft`, {
+      version: 1,
+      confirmation: "CREATE BLOGGER DRAFT",
+    }).expect(409);
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+
+test("approved draft handoff creates one private copy, clears local approval and never publishes or schedules", async () =>
+  withCloud(async (f) => {
+    f.remote.status = "DRAFT";
+    const publish = jest.spyOn(app.get(LiveBloggerAdapter), "publish");
+    const uploaded = await mutate("post", `/blogger/articles/${f.id}/draft`, {
+      version: 1,
+      confirmation: "CREATE BLOGGER DRAFT",
+    }).expect(201);
+    expect(uploaded.body).toMatchObject({
+      status: "NEEDS_REVIEW",
+      approvedAt: null,
+      remoteStatus: "DRAFT",
+      remotePostId: f.remote.id,
+      publishingTarget: "blogger",
+      scheduledAt: null,
+      publishedUrl: null,
+      remoteSyncError: null,
+    });
+    expect(uploaded.body.bloggerDraftHandoffAt).toBeTruthy();
+    expect(f.create).toHaveBeenCalledWith(
+      "cloud-blog",
+      f.title,
+      expect.stringContaining("Primary reference"),
+      ["Git", "Troubleshooting"],
+    );
+    await f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT");
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(0);
+    await mutate("patch", `/articles/${f.id}`, {
+      title: f.title,
+      niche: "Git",
+      version: 1,
+    }).expect(409);
+    await mutate("post", `/articles/${f.id}/transition`, {
+      status: "APPROVED",
+      reason: "No local approval after handoff",
+    }).expect(409);
+    await expect(f.cloud.schedule(f.id, f.at)).rejects.toThrow();
+  }));
+
+test("uncertain draft insertion cannot replay and can link the existing draft by identity", async () =>
+  withCloud(async (f) => {
+    f.remote.status = "DRAFT";
+    f.create.mockRejectedValue(new Error("Response lost"));
+    await expect(
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ).rejects.toThrow("may have accepted");
+    const uncertain = await db.article.findUniqueOrThrow({
+      where: { id: f.id },
+    });
+    expect(uncertain).toMatchObject({
+      status: "PUBLISHING",
+      remotePostId: null,
+      publishingTarget: "blogger",
+    });
+    expect(uncertain.bloggerDraftHandoffAt).toBeTruthy();
+    await expect(
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ).rejects.toThrow();
+    expect(f.create).toHaveBeenCalledTimes(1);
+    const linked = await f.cloud.link(
+      f.id,
+      f.remote.id,
+      "LINK EXISTING BLOGGER POST",
+    );
+    expect(linked).toMatchObject({
+      status: "NEEDS_REVIEW",
+      remoteStatus: "DRAFT",
+      approvedAt: null,
+      remoteSyncError: null,
+    });
+    expect(f.schedule).not.toHaveBeenCalled();
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(0);
+  }));
+
+test("a draft ID survives failed confirmation and is recovered with a read only", async () =>
+  withCloud(async (f) => {
+    f.remote.status = "DRAFT";
+    f.read.mockRejectedValueOnce(new Error("Read unavailable"));
+    await expect(
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ).rejects.toThrow();
+    expect(
+      (await db.article.findUniqueOrThrow({ where: { id: f.id } }))
+        .remotePostId,
+    ).toBe(f.remote.id);
+    expect((await f.cloud.sync(f.id)).results[0].status).toBe("NEEDS_REVIEW");
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+
+test("concurrent draft handoffs retain a single remote copy", async () =>
+  withCloud(async (f) => {
+    f.remote.status = "DRAFT";
+    const results = await Promise.all([
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ]);
+    expect(results.map((a) => a.remotePostId)).toEqual([
+      f.remote.id,
+      f.remote.id,
+    ]);
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+
+test("draft handoff respects emergency stop and duplicate remote titles", async () =>
+  withCloud(async (f) => {
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: { emergencyStop: true },
+    });
+    await expect(
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ).rejects.toThrow("Emergency stop");
+    await db.automationSettings.update({
+      where: { id: "owner" },
+      data: { emergencyStop: false },
+    });
+    f.list.mockResolvedValue([
+      { id: f.remote.id, title: f.title, status: "DRAFT" },
+    ]);
+    await expect(
+      f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT"),
+    ).rejects.toThrow("exists");
+    expect(f.create).not.toHaveBeenCalled();
+  }));
+
+test("handoff status sync observes owner-managed schedules and publication without another remote write", async () =>
+  withCloud(async (f) => {
+    f.remote.status = "DRAFT";
+    await f.cloud.prepareDraft(f.id, 1, "CREATE BLOGGER DRAFT");
+    f.remote.status = "SCHEDULED";
+    await f.cloud.sync(f.id);
+    expect(
+      await db.article.findUniqueOrThrow({ where: { id: f.id } }),
+    ).toMatchObject({
+      status: "SCHEDULED",
+      remoteStatus: "SCHEDULED",
+      approvedAt: null,
+    });
+    f.remote.status = "LIVE";
+    await f.cloud.sync(f.id);
+    expect(
+      await db.article.findUniqueOrThrow({ where: { id: f.id } }),
+    ).toMatchObject({
+      status: "PUBLISHED",
+      remoteStatus: "LIVE",
+      approvedAt: null,
+      publishedUrl: f.remote.url,
+    });
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));

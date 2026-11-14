@@ -60,6 +60,130 @@ export class CloudPublishingService {
       );
     return { ...i, blogId: i.blogId };
   }
+  async prepareDraft(id: string, version: number, confirmation: string) {
+    if (confirmation !== "CREATE BLOGGER DRAFT")
+      throw new BadRequestException(
+        "Confirm CREATE BLOGGER DRAFT after reviewing the selected blog and article.",
+      );
+    return this.locked(async () => {
+      const integration = await this.integration();
+      const article = await this.articles.get(id);
+      if (article.version !== version)
+        throw new ConflictException(
+          "Article changed. Refresh before sending this version.",
+        );
+      if (
+        article.bloggerDraftHandoffAt &&
+        article.remotePostId &&
+        article.publishingTarget === "blogger"
+      ) {
+        if (article.remoteBlogId !== integration.blogId)
+          throw new ConflictException(
+            "Select the original blog before syncing this draft.",
+          );
+        return this.syncOneLocked(id);
+      }
+      if (
+        article.status !== "APPROVED" ||
+        !article.approvedAt ||
+        article.publishingTarget !== "local" ||
+        article.remotePostId ||
+        article.draftAttemptedAt
+      )
+        throw new ConflictException(
+          "Send only an approved article with no existing remote copy or uncertain upload. Link or sync an existing Blogger post instead.",
+        );
+      const settings = await this.db.automationSettings.findUniqueOrThrow({
+        where: { id: "owner" },
+      });
+      if (settings.emergencyStop)
+        throw new ConflictException("Emergency stop is enabled.");
+      if (
+        await this.db.publishJob.count({
+          where: {
+            articleId: id,
+            state: {
+              in: ["PENDING", "RUNNING", "CLOUD_PREPARING", "REMOTE_SCHEDULED"],
+            },
+          },
+        })
+      )
+        throw new ConflictException(
+          "Cancel or reconcile the existing publication before preparing a draft.",
+        );
+      if (!(await this.articles.quality(id)).passed)
+        throw new BadRequestException(
+          "Resolve quality checks before sending the draft.",
+        );
+      if (
+        (await this.google.posts()).some(
+          (post) => post.title?.trim() === article.title.trim(),
+        )
+      )
+        throw new ConflictException(
+          "A Blogger post with this title exists. Link that copy instead.",
+        );
+      await this.db.$transaction(async (tx) => {
+        const changed = await tx.article.updateMany({
+          where: {
+            id,
+            version,
+            status: "APPROVED",
+            publishingTarget: "local",
+            remotePostId: null,
+            draftAttemptedAt: null,
+          },
+          data: {
+            status: "PUBLISHING",
+            publishingTarget: "blogger",
+            remoteBlogId: integration.blogId,
+            draftAttemptedAt: new Date(),
+            bloggerDraftHandoffAt: new Date(),
+            remoteSyncError: null,
+          },
+        });
+        if (!changed.count)
+          throw new ConflictException("Article changed before draft handoff.");
+        await tx.auditLog.create({
+          data: {
+            action: "BLOGGER_DRAFT_HANDOFF_REQUESTED",
+            entityId: id,
+            message:
+              "Owner requested one private Blogger draft for final metadata review. No publish or schedule request is authorized by this action.",
+          },
+        });
+      });
+      try {
+        // createDraft uses isDraft=true with retries disabled. Persist the ID before any follow-up read.
+        const postId = await this.blogger.createDraft(
+          integration.blogId,
+          article.title,
+          publicationHtml(article),
+          article.labels,
+        );
+        if (!postId) throw new Error("Blogger returned no draft identity");
+        await this.db.article.update({
+          where: { id },
+          data: { remotePostId: postId },
+        });
+        const remote = await this.blogger.getPost(integration.blogId, postId);
+        if (
+          remote.id !== postId ||
+          remote.status !== "DRAFT" ||
+          remote.title?.trim() !== article.title.trim()
+        )
+          throw new Error("Draft identity or state was not confirmed");
+        await this.applyRemote(id, remote);
+        return this.articles.get(id);
+      } catch {
+        await this.db.article.update({
+          where: { id },
+          data: { remoteSyncError: uncertainMessage },
+        });
+        throw new BadRequestException(uncertainMessage);
+      }
+    });
+  }
   async schedule(
     id: string,
     at: string,
@@ -256,9 +380,13 @@ export class CloudPublishingService {
         a.status === "PUBLISHING" &&
         !a.remotePostId &&
         !!a.draftAttemptedAt;
+      const handoffRecovery =
+        !!a.bloggerDraftHandoffAt &&
+        a.publishingTarget === "blogger" &&
+        !a.remotePostId;
       if (
-        (a.status !== "APPROVED" && !recovery) ||
-        !a.approvedAt ||
+        (!handoffRecovery &&
+          ((a.status !== "APPROVED" && !recovery) || !a.approvedAt)) ||
         (a.remotePostId && a.remotePostId !== postId) ||
         (a.remoteBlogId && a.remoteBlogId !== i.blogId)
       )
@@ -282,13 +410,20 @@ export class CloudPublishingService {
         throw new ConflictException(
           "The remote title does not match this article. Review the selected post.",
         );
-      if (!["SCHEDULED", "LIVE"].includes(remote.status))
+      if (
+        !(
+          handoffRecovery
+            ? ["DRAFT", "SCHEDULED", "LIVE"]
+            : ["SCHEDULED", "LIVE"]
+        ).includes(remote.status)
+      )
         throw new BadRequestException(
           "Select a scheduled or published Blogger post.",
         );
       if (
-        !remote.published ||
-        !Number.isFinite(new Date(remote.published).getTime())
+        remote.status !== "DRAFT" &&
+        (!remote.published ||
+          !Number.isFinite(new Date(remote.published).getTime()))
       )
         throw new BadRequestException(
           "Blogger did not return a valid publication date.",
@@ -317,7 +452,7 @@ export class CloudPublishingService {
         });
         if (!changed.count)
           throw new ConflictException("Article changed while linking.");
-        if (!recovery)
+        if (!recovery && !handoffRecovery)
           await tx.publishJob.create({
             data: {
               articleId: id,
@@ -359,9 +494,11 @@ export class CloudPublishingService {
         ? "PUBLISHED"
         : remote.status === "SCHEDULED"
           ? "SCHEDULED"
-          : "FAILED";
+          : a.bloggerDraftHandoffAt
+            ? "NEEDS_REVIEW"
+            : "FAILED";
     const error =
-      remote.status === "DRAFT"
+      remote.status === "DRAFT" && !a.bloggerDraftHandoffAt
         ? "This post is a draft on Blogger and has no confirmed publishing schedule. Manage it on Blogger, then sync again."
         : null;
     await this.db.$transaction(async (tx) => {
@@ -375,6 +512,12 @@ export class CloudPublishingService {
           scheduledAt: remote.status === "SCHEDULED" ? date : null,
           publishedAt: remote.status === "LIVE" ? date : null,
           publishedUrl: remote.url || null,
+          ...(a.bloggerDraftHandoffAt
+            ? {
+                approvedAt: null,
+                ...(remote.status === "DRAFT" ? { publishedUrl: null } : {}),
+              }
+            : {}),
         },
       });
       await tx.publishJob.updateMany({
@@ -397,7 +540,10 @@ export class CloudPublishingService {
             articleId: id,
             from: a.status,
             to: status,
-            reason: `Blogger confirmed ${remote.status}. Google handles any accepted future schedule independently of this computer.`,
+            reason:
+              remote.status === "DRAFT" && a.bloggerDraftHandoffAt
+                ? "Blogger confirmed a private draft for owner metadata review. Studio has not scheduled or published it; finish review in Blogger."
+                : `Blogger confirmed ${remote.status}. Google handles any accepted future schedule independently of this computer.`,
           },
         });
     });
