@@ -71,6 +71,7 @@ export interface Article {
   remoteSyncedAt?: string;
   remoteSyncError?: string;
   draftAttemptedAt?: string;
+  bloggerDraftHandoffAt?: string | null;
   updateReminderAt?: string;
   updatedAt: string;
   reports?: Report[];

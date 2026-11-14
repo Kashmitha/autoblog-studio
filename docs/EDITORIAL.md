@@ -17,11 +17,11 @@ For a short Git tutorial, tested commands and their expected output can be suffi
 | Images | Reviewed attached media is appended with alt text, credits and source/license links. Private uploads need public delivery first. |
 | Publishing time | On Blogger sends approved content and a future date to Google now; once confirmed, publication does not require this computer. On this computer uses the local worker and requires the computer/Docker to run; pause defers local jobs. See BLOGGER_SCHEDULING.md. |
 | Permalink | Blogger generates the public URL. Studio records the returned URL. Its internal slug and canonical reference do not set it. |
-| Custom permalink | Not implemented through Studio. Blogger's editor supports this setting before publication. Studio currently creates and publishes in one worker job, with no intermediate remote-draft editing screen. |
+| Custom permalink | Set it in Blogger before publication. Studio can hand off an approved article as a private draft for final metadata review; it does not set a custom permalink through the API. |
 | Search description | Not synced. Studio's excerpt is a workspace summary, not Blogger's per-post search description. |
 | Canonical reference | Workspace reference only; it does not write a public canonical tag. |
 | Robots, comments and theme settings | Not configured per post by Studio; manage them in Blogger. |
 
-Custom permalink/search-description work should use Blogger's editor until a separate remote-draft review flow is implemented and verified. Do not add unsupported API fields or treat an internal reference as a public SEO setting.
+Use the [Blogger draft handoff](BLOGGER_DRAFT_HANDOFF.md) for an intermediate metadata-review step after approving an article in Studio. It creates a private draft and leaves final description, permalink and publication to the owner in Blogger. The automatic scheduler still follows its existing direct scheduling path; it does not set these unsupported metadata fields. Do not add unsupported API fields or treat an internal reference as a public SEO setting.
 
 References: [Blogger post resource](https://developers.google.com/blogger/docs/3.0/reference/posts), [Blogger custom permalink help](https://support.google.com/blogger/answer/41373), [Google Search AI guidance](https://developers.google.com/search/blog/2023/02/google-search-and-ai-content).

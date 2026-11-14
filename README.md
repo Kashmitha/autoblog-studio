@@ -55,6 +55,7 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 ## Documentation
 
 - [Setup & environment variables](docs/SETUP.md)
+- [Send an approved Blogger draft for final SEO review](docs/BLOGGER_DRAFT_HANDOFF.md)
 - [Architecture](docs/ARCHITECTURE.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Progress & remaining work](docs/PROGRESS.md)
 - [Portable content archive](docs/CONTENT_ARCHIVE.md)
