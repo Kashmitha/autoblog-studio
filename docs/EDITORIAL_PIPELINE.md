@@ -18,6 +18,12 @@ Media library now explains which fields the provider search fills and which need
 
 The generation queue button explains its disabled state and remains disabled when preparation blockers exist, including when a previously enabled workflow later loses provider readiness. No billing, API credentials or workflow settings are changed by this preparation UI.
 
+### Topic variety and images
+
+Starter briefs and optional refill now cover Docker, Python, JavaScript, web development, command-line tools and Git, using two primary-reference URLs each. At equal backlog priority, the workflow prefers the least recently used area among the 30 most recently updated nonempty articles. Explicit higher backlog priority still wins. The draft brief suggests an explanation, comparison, walkthrough, checklist, troubleshooting or task-guide angle when appropriate; it does not force title variety when the source scope cannot support it. Existing duplicate-title and uncertainty gates still apply.
+
+Image imports belong to Media library until explicitly attached to an article. The editor now provides a title-prefilled Unsplash search link; edit the search to describe a real photographic subject, review/import it, then return to Article images and attach it. The publication renderer includes attached image URLs, alt text and attribution. Published Blogger posts require an explicit owner update in Blogger; these changes do not retrofit old posts. Unsplash API use remains manual under its [non-automated experience guidance](https://help.unsplash.com/en/articles/2511256-guideline-high-quality-authentic-experiences). Reviewed Commons/original photos remain available for unattended selection.
+
 ### Activate preparation when ready
 
 1. Review the starter briefs in Articles. Their official documentation links are reference starting points; the supplied scope notes do not claim completed fact-checking or command execution. You can supply your own empty briefs with at least two primary sources and support notes. Optional **Refill an empty brief queue** rotates curated Git documentation packs and asks the same draft call for a fresh supported question. Refill currently covers Git only; it makes no keyword-demand claim and needs no separate planning model call.

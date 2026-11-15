@@ -189,9 +189,14 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                     setDraft({ ...policy, autoPlan: event.target.checked })
                   }
                 />
-                Refill an empty brief queue from the curated official Git
-                reference packs
+                Refill an empty brief queue from curated developer reference
+                packs
               </label>
+              <p className="small subtle">
+                Areas include Docker, Python, JavaScript, web development,
+                command-line tools and Git. At equal backlog priority, the
+                workflow prefers a less recently used area.
+              </p>
               <p className="small subtle">
                 Refill uses the same draft call to choose a fresh
                 source-supported reader problem and natural title. It adds no

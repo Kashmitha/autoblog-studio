@@ -15,7 +15,6 @@ import {
   choosePhoto,
   editorialSlots,
   photoPolicy,
-  starterBriefs,
   EDITORIAL_ENABLE,
   EDITORIAL_PUBLISH,
   PHOTO_CONFIRMATION,
@@ -24,6 +23,7 @@ import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
 import sanitizeHtml from "sanitize-html";
 import { aiConfiguration } from "../domain/ai-config";
+import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
 
 export type EditorialInput = {
   enabled: boolean;
@@ -270,22 +270,22 @@ export class EditorialService {
       });
       const existing = new Set(saved.map((a) => normalizeTopic(a.title)));
       const slugs = new Set(saved.map((a) => a.slug));
-      for (const [title, first, second, intent] of starterBriefs) {
+      for (const { title, niche, intent, sources, angle } of referenceBriefs) {
         const slug = `editorial-brief-${normalizeTopic(title).replaceAll(" ", "-").slice(0, 70)}`;
         if (existing.has(normalizeTopic(title)) || slugs.has(slug)) continue;
         await tx.article.create({
           data: {
             title,
             slug,
-            niche: "Git & GitHub",
-            intent,
+            niche,
+            intent: `${intent} Title approach: ${angle}; choose a natural problem-specific title rather than forcing a repeated template.`,
             status: "PLANNED",
             planningNotes:
               "Starter reference brief. Source scope is not a claim that code or factual support was manually verified. Review sources before unattended use.",
             sources: {
-              create: [first, second].map((doc) => ({
-                url: `https://git-scm.com/docs/${doc}`,
-                title: `Official ${doc} reference`,
+              create: sources.map((url) => ({
+                url,
+                title: `${niche} primary reference`,
                 note: `Reference scope: ${intent} This source note is a brief, not a statement of completed human fact checking.`,
               })),
             },
@@ -501,27 +501,39 @@ export class EditorialService {
           );
       } else {
         const c = await this.context();
-        let candidate = c.readyBriefs[0];
+        const recent = await this.db.article.findMany({
+          where: { html: { not: "" } },
+          select: { niche: true },
+          orderBy: { updatedAt: "desc" },
+          take: 30,
+        });
+        let candidate = chooseVariedBrief(
+          c.readyBriefs,
+          recent.map((a) => a.niche),
+        );
         if (!candidate && policy.autoPlan) {
           const count = await this.db.editorialRun.count({
             where: { articleId: { not: null } },
           });
-          const [, first, second] = starterBriefs[count % starterBriefs.length];
+          const pack =
+            chooseVariedBrief(
+              referenceBriefs,
+              recent.map((a) => a.niche),
+            ) || referenceBriefs[count % referenceBriefs.length];
           candidate = await this.db.article.create({
             data: {
-              title: "A new practical question from Git references",
+              title: `A new practical question about ${pack.niche}`,
               slug: `editorial-topic-${run.id}`,
-              niche: "Git & GitHub",
+              niche: pack.niche,
               status: "PLANNED",
-              intent:
-                "Choose a new specific reader problem justified by these official references. Avoid every supplied existing topic. Draft a concrete, accurate tutorial with a natural title. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.",
+              intent: `Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
               planningNotes:
-                "Automatically planned from the owner-enabled curated Git reference packs. This is not a claim of human fact checking or search demand.",
+                "Automatically planned from owner-enabled primary-reference packs across developer topics. This is not a claim of human fact checking or search demand.",
               sources: {
-                create: [first, second].map((doc) => ({
-                  url: `https://git-scm.com/docs/${doc}`,
-                  title: `Official ${doc} reference`,
-                  note: "Reusable reference scope for an owner-enabled automatically planned Git tutorial. Source availability and generated claims still need validation; no human fact-check claim is made.",
+                create: pack.sources.map((url) => ({
+                  url,
+                  title: `${pack.niche} primary reference`,
+                  note: `Reference scope: ${pack.intent} Source availability and generated claims still need validation; no human fact-check claim is made.`,
                 })),
               },
             },

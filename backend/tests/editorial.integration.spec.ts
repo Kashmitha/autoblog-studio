@@ -14,6 +14,7 @@ import {
   EDITORIAL_PUBLISH,
   PHOTO_CONFIRMATION,
 } from "../src/domain/editorial";
+import { referenceBriefs } from "../src/domain/reference-briefs";
 
 let app: INestApplication,
   db: PrismaService,
@@ -493,6 +494,6 @@ test("pause, changed destination and expired policy prevent generation; starter 
   });
   await service.tick();
   expect(generated).toBe(0);
-  expect((await service.starters()).created).toBe(8);
+  expect((await service.starters()).created).toBe(referenceBriefs.length);
   expect((await service.starters()).created).toBe(0);
 });
