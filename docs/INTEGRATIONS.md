@@ -21,6 +21,9 @@ Added 5 November: after that successful first test, approved articles can be sen
 
 ## AI generation
 
+Groq support uses the fixed official `https://api.groq.com/openai/v1/chat/completions` endpoint with strict structured output and real usage counts. `AI_PROVIDER=groq` selects backend-only `GROQ_API_KEY` and `GROQ_MODEL`; OpenAI credentials are never used for Groq. Declared Free mode requires explicit owner Free-plan confirmation; Studio cannot independently verify billing, and an account upgrade may introduce charges. It records zero estimated cost, retains daily attempt limits, and sends no automatic retries or paid fallback. A protected model-access test makes no generation request. See [setup](GROQ_KEY_SETUP.md) and [Groq structured output](https://console.groq.com/docs/structured-outputs).
+
+
 Used the OpenAI Docs skill to check [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs) and the [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). The AiProvider abstraction is replaceable. The initial implementation calls the fixed official Responses endpoint with store=false, schema-constrained output, model/output limits and a bounded researched prompt. No arbitrary provider URL is accepted.
 
 Source excerpts come from URLs the editor supplies with claim-review notes. They are untrusted input and separated from instructions. Source-link reachability is not a credibility/factual certificate. Draft metadata includes outline, image terms and uncertainty notes. All generated article bodies remain NEEDS_REVIEW with internal AI provenance recorded. The optional public AI-assistance footer is off for new drafts; generation preserves the owner's saved choice. See [editorial preferences](EDITORIAL.md) for the natural-writing policy and Blogger metadata limits.

@@ -186,6 +186,9 @@ export interface Integrations {
   };
   bloggerMode: string;
   aiEnabled: boolean;
+  aiProvider?: string;
+  aiFreePlan?: boolean;
+  aiBlockers?: string[];
   aiConfigured: boolean;
   aiModel: string;
   aiMonthlyLimit: number;

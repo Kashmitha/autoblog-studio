@@ -796,7 +796,7 @@ export function Planner({ notify, integrations }: ViewProps) {
           <Notice tone={integrations?.aiEnabled ? "info" : "warning"}>
             {integrations?.aiEnabled
               ? "Uses your configured model, with spending and daily limits."
-              : "AI is disabled until you authorize billing and configure a provider key locally."}
+              : "Text generation is disabled. Configure Groq Free or an authorized paid provider in Blog connections."}
           </Notice>
           <button
             className="secondary"
@@ -876,8 +876,10 @@ export function Generator({ notify, integrations }: ViewProps) {
           </Field>
           <Notice tone={integrations?.aiEnabled ? "info" : "warning"}>
             {integrations?.aiEnabled
-              ? `Model: ${integrations.aiModel}. Monthly spend ceiling: ${money(integrations.aiMonthlyLimit)}.`
-              : "Paid generation is disabled. Local drafting, research and review are available without API credits."}
+              ? integrations.aiFreePlan
+                ? `Groq model: ${integrations.aiModel}. Declared Free plan; account quotas and daily generation limits apply.`
+                : `Model: ${integrations.aiModel}. Monthly spend ceiling: ${money(integrations.aiMonthlyLimit)}.`
+              : "Text generation is disabled. Configure Groq or an authorized paid provider in Blog connections. Local drafting and review remain available."}
           </Notice>
           <button
             className="primary"

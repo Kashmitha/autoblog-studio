@@ -17,6 +17,7 @@ import { GoogleService } from "../infrastructure/blogger.service";
 import { PublishingService } from "../application/publishing.service";
 import { MetricsService } from "../application/metrics.service";
 import { AiService } from "../application/ai.service";
+import { aiConfiguration } from "../domain/ai-config";
 import { MediaService } from "../application/media.service";
 import { SessionGuard, AuthRequest } from "./auth";
 import {
@@ -210,11 +211,12 @@ export class StudioController {
     return {
       google,
       bloggerMode: env.bloggerMode,
-      aiEnabled:
-        process.env.AI_ENABLED === "true" &&
-        process.env.AI_BILLING_AUTHORIZED === "true",
-      aiConfigured: !!process.env.AI_API_KEY,
-      aiModel: process.env.AI_MODEL,
+      aiEnabled: aiConfiguration().ready,
+      aiConfigured: aiConfiguration().configured,
+      aiProvider: aiConfiguration().provider,
+      aiFreePlan: aiConfiguration().free,
+      aiBlockers: aiConfiguration().blockers,
+      aiModel: aiConfiguration().model,
       aiMonthlyLimit: Number(process.env.AI_MONTHLY_LIMIT_USD || 3),
       googleConfigured:
         !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
@@ -226,6 +228,9 @@ export class StudioController {
       analyticsReadAccess: permissions.analytics,
       analyticsConfigured: !!process.env.GA_PROPERTY_ID,
     };
+  }
+  @Post("integrations/ai/test") testAi() {
+    return this.ai.testConnection();
   }
   @Get("integrations/google/connect") connect(
     @Req() req: AuthRequest,

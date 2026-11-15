@@ -24,6 +24,10 @@ let generated = 0,
   uncertain = false,
   cloudFails = false;
 const envNames = [
+  "AI_PROVIDER",
+  "GROQ_API_KEY",
+  "GROQ_PLAN",
+  "GROQ_FREE_TIER_CONFIRMED",
   "AI_ENABLED",
   "AI_BILLING_AUTHORIZED",
   "AI_API_KEY",
@@ -73,6 +77,7 @@ beforeEach(async () => {
   uncertain = false;
   cloudFails = false;
   Object.assign(process.env, {
+    AI_PROVIDER: "openai",
     AI_ENABLED: "true",
     AI_BILLING_AUTHORIZED: "true",
     AI_API_KEY: "fixture-key-not-real",
@@ -283,6 +288,69 @@ test("review-only run prepares a draft and licensed image without approving or c
   ).toBe(1);
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
 });
+test("Groq Free can prepare under its displayed authorization without enabling paid billing", async () => {
+  Object.assign(process.env, {
+    AI_PROVIDER: "groq",
+    GROQ_API_KEY: "isolated-groq-fixture",
+    GROQ_PLAN: "free",
+    GROQ_FREE_TIER_CONFIRMED: "true",
+    AI_BILLING_AUTHORIZED: "false",
+  });
+  await pool();
+  const status = await service.status();
+  expect(status).toMatchObject({
+    generationReady: true,
+    aiFreePlan: true,
+    enablePhrase: "ENABLE EDITORIAL DRAFTS",
+  });
+  await service.save({
+    enabled: true,
+    autoPublish: false,
+    times: ["09:00", "17:00"],
+    revision: 0,
+    confirmation: status.enablePhrase,
+  });
+  await service.queue();
+  await service.tick();
+  expect((await db.editorialRun.findFirstOrThrow()).state).toBe("NEEDS_REVIEW");
+  expect(process.env.AI_BILLING_AUTHORIZED).toBe("false");
+});
+test("Groq connection test requires owner and CSRF, reads model access and exposes no credential", async () => {
+  Object.assign(process.env, {
+    AI_PROVIDER: "groq",
+    GROQ_API_KEY: "isolated-groq-fixture",
+    GROQ_PLAN: "free",
+    GROQ_FREE_TIER_CONFIRMED: "true",
+    AI_BILLING_AUTHORIZED: "false",
+  });
+  await request(app.getHttpServer())
+    .post("/api/integrations/ai/test")
+    .set("Origin", "http://localhost:3100")
+    .expect(401);
+  await agent
+    .post("/api/integrations/ai/test")
+    .set("Origin", "http://localhost:3100")
+    .expect(403);
+  const fetch = jest
+    .mocked(global.fetch)
+    .mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: "openai/gpt-oss-20b" }] })),
+    );
+  const result = await agent
+    .post("/api/integrations/ai/test")
+    .set("Origin", "http://localhost:3100")
+    .set("X-CSRF-Token", csrf)
+    .expect(201);
+  expect(result.body).toMatchObject({
+    provider: "groq",
+    connected: true,
+    generationReady: true,
+  });
+  expect(JSON.stringify(result.body)).not.toContain("isolated-groq-fixture");
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0][0]).toBe("https://api.groq.com/openai/v1/models");
+  expect(generated).toBe(0);
+});
 
 test("optional topic refill creates a source-backed new problem without a separate model call", async () => {
   await db.article.deleteMany();
@@ -323,56 +391,67 @@ test("missing real-photo match blocks; owner can resume the saved photo stage wi
   ).toBe("READY");
   expect(generated).toBe(1);
 });
-test("standing auto policy schedules at most two slots and records automated rather than human approval", async () => {
-  await db.article.updateMany({
-    data: { createdAt: new Date(Date.now() - 30 * 86400000) },
-  });
-  await pool(0);
-  await pool(1);
-  await enable(true);
-  await service.queue();
-  await service.tick();
-  await service.queue();
-  await service.tick();
-  await db.article.create({
-    data: {
-      title: "A third source-backed fixture brief",
-      slug: "third-fixture",
-      niche: "Git",
-      sources: {
-        create: ["git-log", "git-show"].map((name) => ({
-          url: "https://git-scm.com/docs/" + name,
-          title: name,
-          note: "Fixture scope",
-        })),
-      },
-    },
-  });
-  expect((await service.queue()).queued).toBe(false);
-  expect(generated).toBe(2);
-  const runs = await db.editorialRun.findMany({ include: { article: true } });
-  expect(runs).toHaveLength(2);
-  expect(runs.every((run) => run.state === "SCHEDULED")).toBe(true);
-  const attached = await db.articleMedia.findMany({
-    where: { articleId: { in: runs.map((run) => run.articleId!) } },
-  });
-  expect(new Set(attached.map((row) => row.mediaId)).size).toBe(2);
-  for (const run of runs)
-    expect(run.article?.generation).toMatchObject({
-      editorialApproval: {
-        kind: "AUTOMATIC_POLICY",
-        version: run.article?.version,
+test.each(["openai", "groq"])(
+  "%s standing auto policy schedules at most two slots and records automated rather than human approval",
+  async (provider) => {
+    if (provider === "groq")
+      Object.assign(process.env, {
+        AI_PROVIDER: "groq",
+        GROQ_API_KEY: "isolated-groq-fixture",
+        GROQ_PLAN: "free",
+        GROQ_FREE_TIER_CONFIRMED: "true",
+        AI_BILLING_AUTHORIZED: "false",
+      });
+    await db.article.updateMany({
+      data: { createdAt: new Date(Date.now() - 30 * 86400000) },
+    });
+    await pool(0);
+    await pool(1);
+    await enable(true);
+    await service.queue();
+    await service.tick();
+    await service.queue();
+    await service.tick();
+    await db.article.create({
+      data: {
+        title: "A third source-backed fixture brief",
+        slug: "third-fixture",
+        niche: "Git",
+        sources: {
+          create: ["git-log", "git-show"].map((name) => ({
+            url: "https://git-scm.com/docs/" + name,
+            title: name,
+            note: "Fixture scope",
+          })),
+        },
       },
     });
-  expect(
-    await db.auditLog.count({
-      where: {
-        action: "ARTICLE_AUTOMATIC_POLICY_APPROVED",
-        entityId: { in: runs.map((run) => run.articleId!) },
-      },
-    }),
-  ).toBe(2);
-});
+    expect((await service.queue()).queued).toBe(false);
+    expect(generated).toBe(2);
+    const runs = await db.editorialRun.findMany({ include: { article: true } });
+    expect(runs).toHaveLength(2);
+    expect(runs.every((run) => run.state === "SCHEDULED")).toBe(true);
+    const attached = await db.articleMedia.findMany({
+      where: { articleId: { in: runs.map((run) => run.articleId!) } },
+    });
+    expect(new Set(attached.map((row) => row.mediaId)).size).toBe(2);
+    for (const run of runs)
+      expect(run.article?.generation).toMatchObject({
+        editorialApproval: {
+          kind: "AUTOMATIC_POLICY",
+          version: run.article?.version,
+        },
+      });
+    expect(
+      await db.auditLog.count({
+        where: {
+          action: "ARTICLE_AUTOMATIC_POLICY_APPROVED",
+          entityId: { in: runs.map((run) => run.articleId!) },
+        },
+      }),
+    ).toBe(2);
+  },
+);
 test("uncertainty and uncertain Blogger results never auto-regenerate or replay", async () => {
   await pool();
   await enable(true);

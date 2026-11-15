@@ -3,7 +3,10 @@ import {
   GoogleService,
   LiveBloggerAdapter,
 } from "../infrastructure/blogger.service";
-import { AiProvider, OpenAiProvider } from "../infrastructure/ai.provider";
+import {
+  AiProvider,
+  ConfiguredAiProvider,
+} from "../infrastructure/ai.provider";
 import { AiService } from "../application/ai.service";
 import { MediaService } from "../application/media.service";
 import { ReportingService } from "../application/reporting.service";
@@ -27,7 +30,7 @@ import { MetricsModule } from "./metrics.module";
     SearchConsoleAdapter,
     DiagnosticFetcher,
     FetchDiagnosticsService,
-    { provide: AiProvider, useClass: OpenAiProvider },
+    { provide: AiProvider, useClass: ConfiguredAiProvider },
   ],
   exports: [
     GoogleService,

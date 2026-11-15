@@ -57,7 +57,7 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 Open [AutoBlog Studio](http://localhost:3100/) for the publishing workspace. The retired `/welcome` route redirects to the same homepage.
 
 - [Setup & environment variables](docs/SETUP.md)
-- [Studio interface design](docs/STUDIO_DESIGN.md) and [private Groq key preparation](docs/GROQ_KEY_SETUP.md)
+- [Studio interface design](docs/STUDIO_DESIGN.md) and [Groq configuration and automatic publishing](docs/GROQ_KEY_SETUP.md)
 - [Send an approved Blogger draft for final SEO review](docs/BLOGGER_DRAFT_HANDOFF.md)
 - [Architecture](docs/ARCHITECTURE.md) and [implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Progress & remaining work](docs/PROGRESS.md)

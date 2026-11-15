@@ -27,6 +27,9 @@ export type EditorialStatus = {
   settings: Policy;
   blogUrl: string | null;
   paidReady: boolean;
+  aiProvider?: string;
+  aiFreePlan?: boolean;
+  enablePhrase?: string;
   monthlyLimitUsd: number | null;
   draftBlockers: string[];
   publishingBlockers: string[];
@@ -62,7 +65,7 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
     policy = draft || data?.settings;
   const phrase = policy?.autoPublish
     ? "AUTHORIZE AUTOMATIC EDITORIAL PUBLISHING"
-    : "ENABLE PAID EDITORIAL DRAFTS";
+    : data?.enablePhrase || "ENABLE PAID EDITORIAL DRAFTS";
   const selected = data?.pool.find((photo) => photo.id === photoId);
   return (
     <section
@@ -91,12 +94,16 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
           <p className="small subtle">
             Destination: {data.blogUrl || "No blog selected"}. Text provider:{" "}
             {data.paidReady
-              ? "Configured with billing authorization"
+              ? data.aiFreePlan
+                ? "Groq - declared Free plan"
+                : "Configured with billing authorization"
               : "Disabled or incomplete"}
-            . Monthly text cap:{" "}
-            {data.monthlyLimitUsd == null
-              ? "Not configured"
-              : `$${data.monthlyLimitUsd} USD`}
+            . {data.aiFreePlan ? "Free-plan accounting" : "Monthly text cap"}:{" "}
+            {data.aiFreePlan
+              ? "$0 declared usage; account quotas apply"
+              : data.monthlyLimitUsd == null
+                ? "Not configured"
+                : `$${data.monthlyLimitUsd} USD`}
             . Worker last seen:{" "}
             {data.workerLastSeen
               ? formatDate(data.workerLastSeen, true)
@@ -125,8 +132,8 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                   not guarantee a relevant, unused match for every article.
                 </li>
                 <li>
-                  Paid generation is unavailable. Keep its settings off until
-                  you are ready to configure billing.
+                  Generation is unavailable. Configure Groq Free or an
+                  authorized paid provider before enabling it.
                 </li>
               </ul>
               {data.readyBriefs.length > 0 && (
@@ -340,7 +347,8 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                 setDraft({ ...policy, enabled: event.target.checked })
               }
             />
-            Enable paid preparation (maximum two slot attempts per day)
+            Enable {data.aiFreePlan ? "article" : "paid"} preparation (maximum
+            two slot attempts per day)
           </label>
           <label className="checkbox-label">
             <input
@@ -357,8 +365,9 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
             Without automatic publishing, drafts stop for owner review. With it,
             individual manual approval is skipped only under the saved policy;
             uncertainty, quality, image, budget or destination failures still
-            stop the run. Token pricing, spending caps and billing consent
-            remain required in private .env.
+            stop the run. Groq Free requires a confirmed Free account and daily
+            limits. Paid providers require current prices, spending caps and
+            billing consent in private .env.
           </p>
           <div className="two-column">
             {policy.times.map((time, index) => (
