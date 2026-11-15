@@ -32,7 +32,7 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
     await page.getByRole("button", { name: "Open workspace" }).click();
     await expect(
       page.getByRole("heading", {
-        name: "A little consistency. A lot of possibility.",
+        name: "Publishing overview",
       }),
     ).toBeVisible();
     await expect(page.getByText("No actual earnings recorded")).toBeVisible();
@@ -121,14 +121,14 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.getByRole("button", { name: "Switch to light theme" }).click();
     for (const [path, heading] of [
-      ["/planner", "Start with a real question."],
-      ["/calendar", "Give good content its moment."],
-      ["/automation", "Consistency, with a human in control."],
-      ["/connections", "A studio that works with your tools."],
-      ["/monetization", "Real earnings. A clearer picture."],
-      ["/analytics", "Understand how people find you."],
-      ["/jobs", "Know what’s running. Know what happened."],
-      ["/media", "The right image, with the right credit."],
+      ["/planner", "Topic planner"],
+      ["/calendar", "Publishing calendar"],
+      ["/automation", "Automation"],
+      ["/connections", "Blog connections"],
+      ["/monetization", "Monetization"],
+      ["/analytics", "Traffic & SEO"],
+      ["/jobs", "Job history"],
+      ["/media", "Media library"],
     ]) {
       await page.goto(path);
       await expect(

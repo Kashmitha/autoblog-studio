@@ -6,14 +6,12 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowRight,
-  ArrowUpRight,
   BookOpen,
   CalendarDays,
   CheckCheck,
   ChevronDown,
   CircleDollarSign,
   CircleHelp,
-  Command,
   FileText,
   FlaskConical,
   Gauge,
@@ -53,6 +51,7 @@ import {
   Preferences,
 } from "./views";
 import Editor from "./editor";
+import { StudioMark } from "./studio-mark";
 const navigation = [
   {
     label: "Workspace",
@@ -152,9 +151,13 @@ export default function Studio() {
     if (!auth) return;
     void post<{ results: { error?: string }[] }>("/blogger/sync")
       .then((result) => {
+        const reconnect = result.results.find((r) =>
+          r.error?.includes("Reconnect Google"),
+        )?.error;
         if (result.results.some((r) => r.error))
           notify(
-            "Some Blogger statuses could not be refreshed. Open the article for details.",
+            reconnect ||
+              "Some Blogger statuses could not be refreshed. Open the article for details.",
             true,
           );
       })
@@ -232,7 +235,42 @@ export default function Studio() {
   }, [auth, notify]);
   useEffect(() => {
     setMobile(false);
+    document
+      .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+      .forEach((menu) => {
+        menu.open = false;
+      });
   }, [path]);
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => {
+      if (window.matchMedia("(max-width: 760px)").matches) return;
+      document
+        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+        .forEach((menu) => {
+          if (!menu.contains(event.target as Node)) menu.open = false;
+        });
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (mobile) {
+        setMobile(false);
+        document.querySelector<HTMLButtonElement>(".mobile-menu")?.focus();
+        return;
+      }
+      document
+        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
+        .forEach((menu) => {
+          menu.open = false;
+          menu.querySelector("summary")?.focus();
+        });
+    };
+    document.addEventListener("pointerdown", closeMenus);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenus);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [mobile]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -261,7 +299,7 @@ export default function Studio() {
     return (
       <div className="loading-screen">
         <div className="brand-symbol">
-          <Command size={25} />
+          <StudioMark />
         </div>
         <p>Opening AutoBlog Studio…</p>
       </div>
@@ -272,7 +310,7 @@ export default function Studio() {
         <section className="login-story">
           <div className="brand">
             <div className="brand-symbol">
-              <Command size={25} />
+              <StudioMark />
             </div>
             AutoBlog<span>Studio</span>
           </div>
@@ -300,15 +338,10 @@ export default function Studio() {
         <section className="login-form">
           <div className="login-card">
             <div className="brand-symbol small-brand">
-              <Command size={22} />
+              <StudioMark />
             </div>
             <h2>Welcome to your studio</h2>
             <p className="subtle">Sign in to plan, create, and publish.</p>
-            <p className="small">
-              <Link className="text-link" href="/welcome">
-                Discover AutoBlog Studio <ArrowUpRight size={13} />
-              </Link>
-            </p>
             <form onSubmit={login}>
               <Field label="Email address">
                 <input
@@ -358,12 +391,19 @@ export default function Studio() {
         <div className="sidebar-overlay" onClick={() => setMobile(false)} />
       )}
       <aside className={"sidebar " + (mobile ? "mobile-open" : "")}>
+        <button
+          className="icon-button close-navigation"
+          aria-label="Close navigation"
+          onClick={() => setMobile(false)}
+        >
+          <X size={18} />
+        </button>
         <Link href="/" className="brand">
           <div className="brand-symbol">
-            <Command size={23} />
+            <StudioMark />
           </div>
           <div>
-            AutoBlog<span>Studio</span>
+            AutoBlog<span>STUDIO</span>
           </div>
         </Link>
         <div className="workspace-select">
@@ -376,38 +416,47 @@ export default function Studio() {
         </div>
         <nav aria-label="Main navigation">
           {navigation.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <div className="nav-caption">{group.label}</div>
-              {group.items.map((item) => (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={
-                    "nav-item " +
-                    ((
-                      item.path === "/"
-                        ? path === "/"
-                        : path.startsWith(item.path)
-                    )
-                      ? "active"
-                      : "")
-                  }
-                >
-                  <item.icon size={18} />
-                  {item.name}
-                  {item.path === "/generator" && (
-                    <span className="nav-ai">AI</span>
-                  )}
-                </Link>
-              ))}
-            </div>
+            <details
+              className="nav-group"
+              key={group.label}
+              open={mobile || undefined}
+            >
+              <summary className="nav-caption">
+                {group.label}
+                <ChevronDown size={13} />
+              </summary>
+              <div className="nav-menu">
+                {group.items.map((item) => (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    className={
+                      "nav-item " +
+                      ((
+                        item.path === "/"
+                          ? path === "/"
+                          : path.startsWith(item.path)
+                      )
+                        ? "active"
+                        : "")
+                    }
+                  >
+                    <item.icon size={18} />
+                    {item.name}
+                    {item.path === "/generator" && (
+                      <span className="nav-ai">AI</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </details>
           ))}
         </nav>
         <div className="sidebar-bottom">
           <div className="editorial-note">
             <ShieldCheck size={18} />
-            <strong>Your voice. Your approval.</strong>
-            <p>Every AI draft stays in review until you say it’s ready.</p>
+            <strong>Publishing controls</strong>
+            <p>Review sources, approve changes and choose when to publish.</p>
           </div>
           <Link
             href="/settings"
@@ -491,7 +540,11 @@ export default function Studio() {
         </header>
         <main
           id="main"
-          className={"content " + (isEditor ? "editor-content" : "")}
+          className={
+            "content " +
+            (path === "/" ? "overview-content " : "") +
+            (isEditor ? "editor-content" : "")
+          }
         >
           {path === "/" ? (
             <Overview {...props} />

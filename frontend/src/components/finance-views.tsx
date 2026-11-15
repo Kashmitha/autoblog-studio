@@ -61,7 +61,7 @@ export function Finance({
         title={
           expenses
             ? "Make the numbers make sense."
-            : "Real earnings. A clearer picture."
+            : "Monetization"
         }
         description={
           expenses
@@ -448,7 +448,7 @@ export function Traffic({ notify, integrations }: ViewProps) {
     <>
       <PageHeading
         eyebrow="READERS, NOT JUST NUMBERS"
-        title="Understand how people find you."
+        title="Traffic & SEO"
         description="Connect authorized reporting or import your real traffic records."
       />
       <IndexingOverview notify={notify} />
@@ -685,7 +685,7 @@ export function Jobs({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="BEHIND THE SCENES"
-        title="Know what’s running. Know what happened."
+        title="Job history"
         description="Persistent job history, queue health, failure reasons, and your audit trail."
       >
         <button

@@ -83,7 +83,7 @@ export function MediaLibrary({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="REAL IMAGES, CLEAR RIGHTS"
-        title="The right image, with the right credit."
+        title="Media library"
         description="Useful screenshots, your original photos, and reviewed commercial-use stock images. No AI images."
       >
         <button className="primary" onClick={() => edit()}>
@@ -552,7 +552,7 @@ export function Preferences({ integrations, notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="YOUR WORKSPACE"
-        title="Keep your studio in order."
+        title="Workspace settings"
         description="Local-first settings with explicit controls for external services."
       />
       <div className="two-column">
@@ -624,7 +624,7 @@ export function Help() {
     <>
       <PageHeading
         eyebrow="A LITTLE GUIDANCE"
-        title="A useful publishing habit starts here."
+        title="Help & documentation"
         description="Your local workspace, from research to responsible automation."
       />
       <div className="two-column">

@@ -8,6 +8,7 @@ import { publicGet } from "../infrastructure/public-http";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
 import { referenceExcerpt } from "../domain/research";
+import { aiConfiguration } from "../domain/ai-config";
 @Injectable()
 export class AiService {
   constructor(
@@ -15,30 +16,64 @@ export class AiService {
     private readonly articles: ArticlesService,
     private readonly provider: AiProvider,
   ) {}
+  async testConnection() {
+    const config = aiConfiguration();
+    if (!config.configured)
+      throw new BadRequestException(
+        "Configure the selected provider's API key privately, then recreate backend and worker.",
+      );
+    if (!["openai", "groq"].includes(config.provider))
+      throw new BadRequestException("Choose a supported text provider first.");
+    const url =
+      config.provider === "groq"
+        ? "https://api.groq.com/openai/v1/models"
+        : "https://api.openai.com/v1/models";
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${config.provider === "groq" ? process.env.GROQ_API_KEY : process.env.AI_API_KEY}`,
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new BadRequestException(
+        "Provider connection test could not complete. Check network and provider status.",
+      );
+    }
+    if (!response.ok)
+      throw new BadRequestException(
+        `Provider connection test returned HTTP ${response.status}. Check the private key, permissions and quota.`,
+      );
+    const result = (await response.json()) as { data?: { id: string }[] };
+    if (
+      !Array.isArray(result.data) ||
+      !result.data.some((m) => m.id === config.model)
+    )
+      throw new BadRequestException(
+        "Provider access succeeded, but the selected model is unavailable. Check its exact ID and permissions.",
+      );
+    return {
+      provider: config.provider,
+      model: config.model,
+      connected: true,
+      generationReady: config.ready,
+      blockers: config.blockers,
+      message:
+        "API key and selected model are accessible. No text was generated. This does not verify billing plan, completion quota or Blogger access.",
+    };
+  }
   async generate(dto: GenerateDto, expectedVersion?: number) {
-    if (
-      process.env.AI_ENABLED !== "true" ||
-      process.env.AI_BILLING_AUTHORIZED !== "true" ||
-      !process.env.AI_API_KEY
-    )
-      throw new BadRequestException(
-        "Paid AI is disabled. Configure credentials, pricing and explicit billing authorization locally first.",
-      );
-    const inputRate = Number(process.env.AI_INPUT_USD_PER_MILLION),
-      outputRate = Number(process.env.AI_OUTPUT_USD_PER_MILLION),
-      limit = Number(process.env.AI_MONTHLY_LIMIT_USD || 3),
-      dailyLimit = Number(process.env.AI_DAILY_GENERATION_LIMIT || 2),
-      maxTokens = Number(process.env.AI_MAX_OUTPUT_TOKENS || 2400),
-      model = process.env.AI_MODEL || "gpt-4.1-mini";
-    if (
-      ![inputRate, outputRate, limit, dailyLimit, maxTokens].every(
-        (v) => Number.isFinite(v) && v > 0,
-      ) ||
-      maxTokens > 10000
-    )
-      throw new BadRequestException(
-        "Set valid provider pricing, spending limits and output token limit (max 10,000).",
-      );
+    const config = aiConfiguration();
+    if (!config.ready) throw new BadRequestException(config.blockers.join(" "));
+    const {
+      inputRate,
+      outputRate,
+      monthlyLimit: limit,
+      dailyLimit,
+      maxTokens,
+      model,
+    } = config;
     const existing = await this.db.article.findMany({
       select: { title: true, publishedUrl: true },
       take: 100,
@@ -91,6 +126,10 @@ export class AiService {
           ? "Propose five specific nonduplicative tutorials. Do not claim verified search demand; leave draft fields empty."
           : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Identify unverified code or claims in uncertainties. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
       research,
+      draftLength:
+        dto.task === "draft"
+          ? "Aim for 450–900 useful words with specific supported steps, caveats and examples. Do not pad a short answer; flag insufficient reference support in uncertainties."
+          : undefined,
     });
     if (Buffer.byteLength(prompt) > 32000)
       throw new BadRequestException(
@@ -118,7 +157,9 @@ export class AiService {
           .length >= dailyLimit
       )
         throw new BadRequestException("Daily AI generation limit reached.");
-      return tx.aiUsage.create({ data: { model, reservedUsd: reserve } });
+      return tx.aiUsage.create({
+        data: { model: config.usageModel, reservedUsd: reserve },
+      });
     });
     try {
       const result = await this.provider.generate(prompt, maxTokens, model);

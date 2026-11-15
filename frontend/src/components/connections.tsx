@@ -34,7 +34,7 @@ export function Connections({ notify }: ViewProps) {
     <>
       <PageHeading
         eyebrow="CONNECTED, ON YOUR TERMS"
-        title="A studio that works with your tools."
+        title="Blog connections"
         description="Credentials stay on the backend. Your accounts remain under your control."
       />
       <ResourceState {...r} />
@@ -103,7 +103,27 @@ export function Connections({ notify }: ViewProps) {
                     >
                       Load owned blogs
                     </button>
+                    <button
+                      className="secondary"
+                      disabled={a.busy || !d.googleConfigured}
+                      onClick={() =>
+                        a.run(async () => {
+                          const result = await api<{ url: string }>(
+                            "/integrations/google/connect",
+                          );
+                          window.location.href = result.url;
+                        })
+                      }
+                    >
+                      <Link2 size={15} />
+                      Reconnect Google
+                    </button>
                   </div>
+                  <p className="small subtle spaced">
+                    If access expires, reconnect with the same Google account
+                    that owns this blog. Your selected blog and saved article
+                    approvals are kept.
+                  </p>
                   {blogs.length > 0 && (
                     <>
                       <Field label="Owned blog">
@@ -208,13 +228,17 @@ export function Connections({ notify }: ViewProps) {
                 </div>
                 <div>
                   <h2>AI writing provider</h2>
-                  <p className="subtle small">Pluggable backend provider</p>
+                  <p className="subtle small">
+                    {d.aiProvider === "groq" ? "Groq" : "OpenAI"} ·{" "}
+                    {d.aiFreePlan ? "Declared Free plan" : "Paid API"}
+                  </p>
                 </div>
                 <Badge value={d.aiEnabled ? "ENABLED" : "DISABLED"} />
               </div>
               <p className="subtle">
-                Paid generation stays disabled until you explicitly authorize
-                API billing. A ChatGPT subscription does not imply API credits.
+                {d.aiFreePlan
+                  ? "Groq Free usage is limited by your account's quotas. Studio records $0 based on your Free-plan declaration; it cannot verify your billing plan. No paid fallback is used."
+                  : "Paid generation requires explicit API billing authorization. A ChatGPT subscription does not include API credits."}
               </p>
               <div className="config-summary">
                 <div>
@@ -222,8 +246,14 @@ export function Connections({ notify }: ViewProps) {
                   <strong>{d.aiModel || "Not configured"}</strong>
                 </div>
                 <div>
-                  <span>Monthly ceiling</span>
-                  <strong>${d.aiMonthlyLimit} USD</strong>
+                  <span>
+                    {d.aiFreePlan ? "Usage accounting" : "Monthly ceiling"}
+                  </span>
+                  <strong>
+                    {d.aiFreePlan
+                      ? "$0 declared Free plan"
+                      : `$${d.aiMonthlyLimit} USD`}
+                  </strong>
                 </div>
                 <div>
                   <span>Key configured</span>
@@ -233,13 +263,33 @@ export function Connections({ notify }: ViewProps) {
                 </div>
               </div>
               <Notice>
-                Configure AI_API_KEY, current model token prices, AI_ENABLED and
-                AI_BILLING_AUTHORIZED locally. Keep the monthly limit within
-                your budget.
+                {d.aiBlockers?.length
+                  ? d.aiBlockers.join(" ")
+                  : d.aiProvider === "groq"
+                    ? "Configure GROQ_API_KEY and GROQ_MODEL privately. Free-plan confirmation or paid billing authorization is required, along with AI_ENABLED and daily limits."
+                    : "Configure AI_API_KEY, current model token prices, AI_ENABLED and AI_BILLING_AUTHORIZED locally. Keep the monthly limit within your budget."}
               </Notice>
+              <button
+                className="secondary"
+                disabled={a.busy || !d.aiConfigured}
+                onClick={() =>
+                  a.run(async () => {
+                    const result = await post<{ message: string }>(
+                      "/integrations/ai/test",
+                    );
+                    notify(result.message);
+                  })
+                }
+              >
+                Test text provider
+              </button>
               <a
                 className="text-link"
-                href="https://platform.openai.com/api-keys"
+                href={
+                  d.aiProvider === "groq"
+                    ? "https://console.groq.com/keys"
+                    : "https://platform.openai.com/api-keys"
+                }
                 target="_blank"
                 rel="noreferrer"
               >

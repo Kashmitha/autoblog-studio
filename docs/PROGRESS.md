@@ -1,6 +1,10 @@
 # Progress
 
-Last updated: 13 November 2026, Asia/Colombo.
+Last updated: 15 November 2026, Asia/Colombo.
+
+15 November Groq checkpoint: Free-plan and paid Groq adapters are implemented alongside OpenAI, with private key separation, strict structured output, bounded usage and a model-access test. Google connection test now succeeds for the selected blog. Seven source-backed briefs and one eligible photo are available. Generation and automation remain disabled; the private key and owner Free-plan confirmation are still required. Prepare enough related unused photos and verify two Blogger-hosted schedules for 16 November before relying on PC-off publishing. No real model call, upload or publication was performed. See [Groq setup](GROQ_KEY_SETUP.md).
+
+The current Studio uses a glass workspace in pearl/charcoal, plum and coral, with self-hosted Poppins headings and Inter controls. A new folded-page/A vector logo and favicon, frosted panels, readable status colors and responsive navigation apply throughout. The owner workspace remains the only homepage. This replaces the previous paper/blackletter presentation; no publishing, AI billing or saved content changes are included. See [Studio design](STUDIO_DESIGN.md).
 
 ## Completed
 

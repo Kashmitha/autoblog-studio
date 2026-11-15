@@ -19,6 +19,17 @@ Success: the connection test reports success and the selected owned/authored blo
 
 Complete these steps and reply DONE.
 
+## Recover expired Google access
+
+If scheduling or Test connection reports expired/revoked Google access (`invalid_grant`), the saved grant must be renewed by the owner:
+
+1. Open [Blog connections](http://localhost:3100/connections) and click **Reconnect Google**. Do not disconnect first.
+2. Sign in with the same Google account that owns the selected Blogger blog and complete consent.
+3. Click **Test connection** and verify the selected blog URL is still correct.
+4. Return to the approved article and request its future Blogger schedule again. Choose a time at least five minutes ahead.
+
+Reconnecting preserves the selected blog and publishing checkpoint when ownership verification succeeds. It does not publish or schedule an article. An authentication failure during the scheduling preflight happens before any upload intent is recorded; uncertain upload outcomes must still be synced or reconciled instead of retried blindly.
+
 ## Separate first live publication authorization
 
 Only after the connection is verified:

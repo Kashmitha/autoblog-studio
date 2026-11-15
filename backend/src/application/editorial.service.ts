@@ -23,6 +23,7 @@ import {
 import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
 import sanitizeHtml from "sanitize-html";
+import { aiConfiguration } from "../domain/ai-config";
 
 export type EditorialInput = {
   enabled: boolean;
@@ -95,20 +96,9 @@ export class EditorialService {
         a.sources.length >= 2 &&
         a.sources.every((source) => !!source.note.trim()),
     );
-    const paidReady =
-      process.env.AI_ENABLED === "true" &&
-      process.env.AI_BILLING_AUTHORIZED === "true" &&
-      !!process.env.AI_API_KEY &&
-      [
-        "AI_INPUT_USD_PER_MILLION",
-        "AI_OUTPUT_USD_PER_MILLION",
-        "AI_MONTHLY_LIMIT_USD",
-      ].every((name) => Number(process.env[name]) > 0);
-    const blockers: string[] = [];
-    if (!paidReady)
-      blockers.push(
-        "Configure the text provider, current token prices and explicit API billing authorization in private .env.",
-      );
+    const ai = aiConfiguration();
+    const paidReady = ai.ready; // retained API field for existing clients
+    const blockers: string[] = [...ai.blockers];
     if (Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < 2)
       blockers.push(
         "Text-generation daily limit must allow two drafts; the monthly spending cap still applies.",
@@ -119,7 +109,7 @@ export class EditorialService {
       );
     if (!automation || automation.paused)
       blockers.push(
-        "Local automation is paused. Resume it only when you want paid generation to run.",
+        "Local automation is paused. Resume it when you want article preparation to run.",
       );
     if (automation?.emergencyStop) blockers.push("Emergency stop is enabled.");
     if (!readyBriefs.length && !settings.autoPlan)
@@ -171,6 +161,12 @@ export class EditorialService {
       settings: c.settings,
       blogUrl: c.google?.blogUrl || null,
       paidReady: c.paidReady,
+      generationReady: c.paidReady,
+      aiProvider: aiConfiguration().provider,
+      aiFreePlan: aiConfiguration().free,
+      enablePhrase: aiConfiguration().free
+        ? "ENABLE EDITORIAL DRAFTS"
+        : EDITORIAL_ENABLE,
       monthlyLimitUsd:
         Number(process.env.AI_MONTHLY_LIMIT_USD) > 0
           ? Number(process.env.AI_MONTHLY_LIMIT_USD)
@@ -211,7 +207,11 @@ export class EditorialService {
     if (input.enabled) {
       if (
         input.confirmation !==
-        (input.autoPublish ? EDITORIAL_PUBLISH : EDITORIAL_ENABLE)
+        (input.autoPublish
+          ? EDITORIAL_PUBLISH
+          : aiConfiguration().free
+            ? "ENABLE EDITORIAL DRAFTS"
+            : EDITORIAL_ENABLE)
       )
         throw new BadRequestException(
           "Type the displayed authorization phrase to enable this workflow.",

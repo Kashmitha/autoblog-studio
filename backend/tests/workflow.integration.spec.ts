@@ -611,6 +611,10 @@ async function withFakeAi(
   run: (service: AiService, generate: jest.Mock) => Promise<void>,
 ) {
   const keys = [
+    "AI_PROVIDER",
+    "GROQ_API_KEY",
+    "GROQ_PLAN",
+    "GROQ_FREE_TIER_CONFIRMED",
     "AI_ENABLED",
     "AI_BILLING_AUTHORIZED",
     "AI_API_KEY",
@@ -663,6 +667,36 @@ test("AI cost reservations record real provider usage from a fake adapter withou
     expect(generate).toHaveBeenCalledTimes(1);
     expect(result.costUsd).toBeCloseTo(0.00012);
     expect((await db.aiUsage.findFirstOrThrow()).state).toBe("COMPLETED");
+  });
+});
+test("Groq Free counts successful and uncertain attempts toward the daily cap at declared zero cost", async () => {
+  await withFakeAi(async (service, generate) => {
+    Object.assign(process.env, {
+      AI_PROVIDER: "groq",
+      GROQ_API_KEY: "isolated-groq-fixture",
+      GROQ_PLAN: "free",
+      GROQ_FREE_TIER_CONFIRMED: "true",
+      AI_BILLING_AUTHORIZED: "false",
+      AI_DAILY_GENERATION_LIMIT: "2",
+    });
+    const result = await service.generate({ task: "topics", niche: "Git" });
+    expect(result.costUsd).toBe(0);
+    generate.mockRejectedValue(new Error("Groq quota fixture"));
+    await expect(
+      service.generate({ task: "topics", niche: "Git" }),
+    ).rejects.toThrow("quota");
+    await expect(
+      service.generate({ task: "topics", niche: "Git" }),
+    ).rejects.toThrow("Daily");
+    expect(generate).toHaveBeenCalledTimes(2);
+    const usage = await db.aiUsage.findMany();
+    expect(usage).toHaveLength(2);
+    expect(
+      usage.every(
+        (u) => u.model.startsWith("groq/") && Number(u.costUsd) === 0,
+      ),
+    ).toBe(true);
+    expect(usage.map((u) => u.state).sort()).toEqual(["COMPLETED", "UNKNOWN"]);
   });
 });
 test("AI spending ceiling rejects before making a provider request", async () => {
