@@ -8,7 +8,7 @@ Open an editable article and scroll to **Article images**. This workflow needs n
 4. Click **Attach selected image**. This explicitly adds the selected image through the existing article-media endpoint; existing attachments are retained. The server invalidates prior editorial approval/version evidence as before. Remove an existing image separately if you intend to replace it.
 5. Inspect the article preview, recheck quality and save fresh editorial approval before scheduling. No publication is authorized by attaching a photograph.
 
-Imported Unsplash photos can be manually attached here. They remain excluded from the automatic photo pool. Commons and original photos still require separate rights and real-photo confirmation for automatic selection.
+Imported Unsplash photos can be manually attached here. They remain excluded from the automatic photo pool. Commons and original photos can enter the owner-reviewed automatic pool; Commons discovery can also import candidates passing the separate [automatic metadata policy](AUTOMATIC_PHOTOS.md). That automated review is distinct from owner review.
 
 An image without confirmed rights review cannot be attached through the chooser. A private original may be attached to a draft, but it needs public HTTPS delivery before publication. Archived references must be re-imported and reviewed first. Source/license links are shown only for HTTPS addresses. License metadata is evidence for review, not a guarantee of rights or subject relevance.
 

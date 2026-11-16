@@ -850,8 +850,9 @@ export default function Editor({
                 <p className="small subtle">
                   A library import does not attach a photo to this article.
                   Review a relevant real photograph, import it, return here and
-                  preview it above and click Attach selected image. Attached images and attribution are included
-                  when Studio publishes or schedules the article.
+                  preview it above and click Attach selected image. Attached
+                  images and attribution are included when Studio publishes or
+                  schedules the article.
                 </p>
               </section>
             </aside>
