@@ -35,7 +35,10 @@ test("owner dashboard, article editing, safety gates, themes and navigation", as
         name: "Publishing overview",
       }),
     ).toBeVisible();
-    await expect(page.getByText("No actual earnings recorded")).toBeVisible();
+    // The real owner ledger can contain actual-revenue records, including zero.
+    await expect(
+      page.locator(".metric-grid").getByText("Actual revenue", { exact: true }),
+    ).toBeVisible();
     await expect(
       page
         .getByText(

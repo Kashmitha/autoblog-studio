@@ -611,21 +611,6 @@ export class EditorialService {
         uncertainties?: unknown;
         imageSearchTerms?: unknown;
       };
-      if (
-        !Array.isArray(generation.uncertainties) ||
-        generation.uncertainties.length
-      ) {
-        await this.db.editorialRun.update({
-          where: { id: run.id },
-          data: {
-            state: "NEEDS_REVIEW",
-            finishedAt: new Date(),
-            message:
-              "The model flagged uncertainty or unverified examples. Owner review is required; no automatic approval.",
-          },
-        });
-        return;
-      }
       const searchTerms = Array.isArray(generation.imageSearchTerms)
         ? generation.imageSearchTerms
             .filter((term): term is string => typeof term === "string")
@@ -685,6 +670,23 @@ export class EditorialService {
         throw new BadRequestException(
           "Quality or originality checks need owner attention. No automated approval.",
         );
+      if (
+        !Array.isArray(generation.uncertainties) ||
+        generation.uncertainties.length
+      ) {
+        await this.db.editorialRun.update({
+          where: { id: run.id },
+          data: {
+            state: "NEEDS_REVIEW",
+            stage: "READY",
+            articleVersion: a.version,
+            finishedAt: new Date(),
+            message:
+              "Photo and attribution are attached. The model flagged unresolved claims or unverified examples; review is required before approval or scheduling.",
+          },
+        });
+        return;
+      }
       policy = await this.active(run);
       if (!policy.autoPublish) {
         await this.db.editorialRun.update({
