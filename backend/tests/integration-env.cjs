@@ -12,3 +12,4 @@ process.env.AI_BILLING_AUTHORIZED = "false";
 process.env.AI_PROVIDER = "openai";
 delete process.env.GROQ_API_KEY;
 delete process.env.GROQ_FREE_TIER_CONFIRMED;
+process.env.COMMONS_AUTO_IMPORT = "false";

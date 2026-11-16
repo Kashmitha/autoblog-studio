@@ -5,6 +5,46 @@ import {
   photoPolicy,
   type PhotoCandidate,
 } from "../src/domain/editorial";
+import {
+  chooseVariedBrief,
+  referenceBriefs,
+} from "../src/domain/reference-briefs";
+
+test("reference packs cover varied developer areas and title approaches with primary HTTPS sources", () => {
+  expect(
+    new Set(referenceBriefs.map((b) => b.niche)).size,
+  ).toBeGreaterThanOrEqual(6);
+  expect(
+    new Set(referenceBriefs.map((b) => b.angle)).size,
+  ).toBeGreaterThanOrEqual(5);
+  expect(
+    referenceBriefs.every(
+      (b) =>
+        b.sources.length >= 2 &&
+        b.sources.every((url) => url.startsWith("https://")),
+    ),
+  ).toBe(true);
+});
+test("topic rotation avoids recent areas while honoring explicit backlog priority", () => {
+  const briefs = [
+    { niche: "Git & GitHub", backlogPriority: 0 },
+    { niche: "Docker & DevOps", backlogPriority: 0 },
+    { niche: "Python", backlogPriority: 0 },
+  ];
+  expect(chooseVariedBrief(briefs, ["Git & GitHub"])?.niche).toBe(
+    "Docker & DevOps",
+  );
+  expect(
+    chooseVariedBrief(briefs, ["Docker & DevOps", "Git & GitHub"])?.niche,
+  ).toBe("Python");
+  expect(
+    chooseVariedBrief(
+      [{ ...briefs[0], backlogPriority: 2 }, ...briefs.slice(1)],
+      ["Git & GitHub"],
+    )?.niche,
+  ).toBe("Git & GitHub");
+  expect(chooseVariedBrief([], [])).toBeUndefined();
+});
 
 const now = new Date("2026-11-13T03:00:00Z"); // 08:30 Sri Lanka.
 const photo: PhotoCandidate = {

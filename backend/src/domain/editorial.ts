@@ -85,7 +85,7 @@ export function choosePhoto(
   photos: PhotoCandidate[],
   terms: string,
   now = new Date(),
-) {
+): PhotoCandidate | null {
   const tokens = new Set(
     normalizeTopic(terms)
       .split(" ")
