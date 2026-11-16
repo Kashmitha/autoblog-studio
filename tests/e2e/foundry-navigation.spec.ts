@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Studio navigation opens by keyboard, dismisses, reaches Studio tools and works on a narrow screen", async ({
+test("Sidebar links stay visible, support keyboard navigation and work in the mobile drawer", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -24,24 +24,15 @@ test("Studio navigation opens by keyboard, dismisses, reaches Studio tools and w
   });
   await page.goto("/");
   const nav = page.getByRole("navigation", { name: "Main navigation" });
-  const workspace = nav.locator("summary").filter({ hasText: "Workspace" });
-  await expect(workspace).toBeVisible();
-  await workspace.focus();
+  await expect(nav.locator("summary")).toHaveCount(0);
+  await expect(nav.getByRole("link")).toHaveCount(12);
+  for (const link of await nav.getByRole("link").all())
+    await expect(link).toBeVisible();
+  const articles = nav.getByRole("link", { name: "Articles", exact: true });
+  await articles.focus();
+  await expect(articles).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(
-    nav.getByRole("link", { name: "Articles", exact: true }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(
-    nav.getByRole("link", { name: "Articles", exact: true }),
-  ).not.toBeVisible();
-  await expect(workspace).toBeFocused();
-  await workspace.click();
-  await page.locator("h1").click();
-  await expect(
-    nav.getByRole("link", { name: "Articles", exact: true }),
-  ).not.toBeVisible();
-  await workspace.click();
+  await expect(articles).toHaveAttribute("aria-current", "page");
   await nav.getByRole("link", { name: "Articles", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Articles", exact: true }),

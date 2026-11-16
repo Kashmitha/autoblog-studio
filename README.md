@@ -21,6 +21,15 @@ npm run dev
 
 Open **[AutoBlog Studio](http://localhost:3100)**. Read OWNER_EMAIL and OWNER_PASSWORD privately from local `.env`; do not paste them in chat. Port 3100 avoids another application on 3000. PostgreSQL binds 15432 and Redis 56379 because Windows reserved the initial database ports.
 
+When Studio runs in Docker, source edits are not live-mounted. After frontend changes, rebuild and replace just the frontend, then refresh the browser with **Ctrl+F5**:
+
+```powershell
+docker compose --profile app build frontend
+docker compose --profile app up -d --no-deps frontend
+```
+
+The active UI is `frontend/src/app/linear-redesign.css`. Shared component layouts remain in the `studio-foundation` layer of `globals.css`; the retired refresh, Foundry and glass stylesheet imports have been removed. These frontend commands leave the backend, worker and database services running.
+
 For production-mode local servers after `npm run build`, run in three terminals:
 
 ```powershell

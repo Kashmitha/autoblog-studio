@@ -235,21 +235,8 @@ export default function Studio() {
   }, [auth, notify]);
   useEffect(() => {
     setMobile(false);
-    document
-      .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
-      .forEach((menu) => {
-        menu.open = false;
-      });
   }, [path]);
   useEffect(() => {
-    const closeMenus = (event: PointerEvent) => {
-      if (window.matchMedia("(max-width: 760px)").matches) return;
-      document
-        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
-        .forEach((menu) => {
-          if (!menu.contains(event.target as Node)) menu.open = false;
-        });
-    };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (mobile) {
@@ -257,17 +244,9 @@ export default function Studio() {
         document.querySelector<HTMLButtonElement>(".mobile-menu")?.focus();
         return;
       }
-      document
-        .querySelectorAll<HTMLDetailsElement>(".nav-group[open]")
-        .forEach((menu) => {
-          menu.open = false;
-          menu.querySelector("summary")?.focus();
-        });
     };
-    document.addEventListener("pointerdown", closeMenus);
     document.addEventListener("keydown", escape);
     return () => {
-      document.removeEventListener("pointerdown", closeMenus);
       document.removeEventListener("keydown", escape);
     };
   }, [mobile]);
@@ -415,42 +394,39 @@ export default function Studio() {
           <ChevronDown size={14} />
         </div>
         <nav aria-label="Main navigation">
-          {navigation.map((group) => (
-            <details
-              className="nav-group"
-              key={group.label}
-              open={mobile || undefined}
-            >
-              <summary className="nav-caption">
-                {group.label}
-                <ChevronDown size={13} />
-              </summary>
-              <div className="nav-menu">
-                {group.items.map((item) => (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    className={
-                      "nav-item " +
-                      ((
-                        item.path === "/"
-                          ? path === "/"
-                          : path.startsWith(item.path)
-                      )
-                        ? "active"
-                        : "")
-                    }
-                  >
-                    <item.icon size={18} />
-                    {item.name}
-                    {item.path === "/generator" && (
-                      <span className="nav-ai">AI</span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            </details>
-          ))}
+          {navigation
+            .flatMap((group) => group.items)
+            .map((item) => (
+              <Link
+                key={item.path}
+                href={item.path}
+                aria-current={
+                  (
+                    item.path === "/"
+                      ? path === "/"
+                      : path.startsWith(item.path)
+                  )
+                    ? "page"
+                    : undefined
+                }
+                className={
+                  "nav-item " +
+                  ((
+                    item.path === "/"
+                      ? path === "/"
+                      : path.startsWith(item.path)
+                  )
+                    ? "active"
+                    : "")
+                }
+              >
+                <item.icon size={18} />
+                {item.name}
+                {item.path === "/generator" && (
+                  <span className="nav-ai">AI</span>
+                )}
+              </Link>
+            ))}
         </nav>
         <div className="sidebar-bottom">
           <div className="editorial-note">
@@ -499,6 +475,7 @@ export default function Studio() {
             <button
               className="icon-button mobile-menu"
               aria-label="Open navigation"
+              title="Open navigation"
               onClick={() => setMobile(true)}
             >
               <Menu size={21} />
@@ -524,6 +501,7 @@ export default function Studio() {
               aria-label={
                 dark ? "Switch to light theme" : "Switch to dark theme"
               }
+              title={dark ? "Switch to light theme" : "Switch to dark theme"}
               onClick={toggleTheme}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
@@ -531,6 +509,7 @@ export default function Studio() {
             <Link
               className="icon-button help-top"
               aria-label="Setup help"
+              title="Setup help"
               href="/integrations"
             >
               <CircleHelp size={19} />
