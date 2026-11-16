@@ -1098,3 +1098,42 @@ tbody tr:hover {
     animation-duration: 0.01ms !important;
   }
 }
+
+.photo-preparation-list {
+  display: grid;
+  margin-top: 20px;
+}
+.photo-preparation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 220px);
+  align-items: start;
+  gap: 24px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+.photo-preparation-row > div {
+  min-width: 0;
+}
+.photo-preparation-row .field {
+  margin-top: 12px;
+}
+.photo-preparation-row figure {
+  margin: 0;
+  min-width: 0;
+}
+.photo-preparation-row img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.photo-preparation-row figcaption {
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+}
+@media (max-width: 760px) {
+  .photo-preparation-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}

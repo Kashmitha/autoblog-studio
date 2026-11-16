@@ -12,7 +12,6 @@ import { MediaService } from "./media.service";
 import { CloudPublishingService } from "./cloud-publishing.service";
 import {
   acceptableTitle,
-  choosePhoto,
   editorialSlots,
   photoPolicy,
   EDITORIAL_ENABLE,
@@ -633,39 +632,12 @@ export class EditorialService {
             .slice(0, 5)
         : [];
       const terms = searchTerms.join(" ");
-      const photos = await this.db.mediaAsset.findMany({
-        where: {
-          rightsConfirmed: true,
-          provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
-          articles: {
-            none: {
-              article: {
-                id: { not: a.id },
-                OR: [
-                  {
-                    editorialRuns: {
-                      some: {
-                        createdAt: { gte: new Date(Date.now() - 7 * 86400000) },
-                      },
-                    },
-                  },
-                  { publishedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-                  { scheduledAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-                ],
-              },
-            },
-          },
-        },
-        take: 200,
-      });
-      let photo = choosePhoto(photos, `${a.title} ${a.intent} ${terms}`);
-      if (!photo && commonsAutoEnabled()) {
-        await this.active(run);
-        try {
-          photo = await this.commons.discover(searchTerms, a.id);
-        } catch {
-          /* Discovery failure retains the text draft for review. */
-        }
+      let photo = null;
+      await this.active(run);
+      try {
+        photo = (await this.commons.select(a, searchTerms))?.photo || null;
+      } catch {
+        /* Preserve the generated draft if image discovery is unavailable. */
       }
       if (!photo) {
         let candidates: Prisma.InputJsonValue = [];
@@ -694,7 +666,7 @@ export class EditorialService {
         return;
       }
       await this.active(run);
-      await this.articles.attach(a.id, photo.id);
+      await this.articles.attachAutomaticPhoto(a.id, photo.id, a.version);
       a = await this.articles.get(a.id);
       const report = await this.articles.quality(a.id);
       if (

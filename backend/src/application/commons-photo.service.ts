@@ -6,11 +6,32 @@ import {
   inspectCommonsPhoto,
   type CommonsFile,
 } from "../domain/commons-photo";
-import { photoPolicy } from "../domain/editorial";
+import { choosePhoto, photoPolicy } from "../domain/editorial";
+import { recentPhotoUse, type PhotoArticle } from "../domain/photo-preparation";
 
 @Injectable()
 export class CommonsPhotoService {
   constructor(private readonly db: PrismaService) {}
+  async select(article: PhotoArticle & { id: string }, terms: string[]) {
+    const photos = await this.db.mediaAsset.findMany({
+      where: {
+        rightsConfirmed: true,
+        provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
+        articles: { none: recentPhotoUse(article.id) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    const photo = choosePhoto(
+      photos,
+      `${article.title} ${article.intent} ${terms.join(" ")}`,
+    );
+    if (photo) return { photo, source: "LIBRARY" as const };
+    const discovered = await this.discover(terms, article.id);
+    return discovered
+      ? { photo: discovered, source: "COMMONS" as const }
+      : null;
+  }
   async discover(terms: string[], articleId: string) {
     if (!commonsAutoEnabled()) return null;
     for (const query of commonsPhotoQueries(terms)) {
@@ -87,29 +108,7 @@ export class CommonsPhotoService {
           if (existing) {
             if (!photoPolicy(existing)) return null;
             const recentUse = await tx.articleMedia.count({
-              where: {
-                mediaId: existing.id,
-                articleId: { not: articleId },
-                article: {
-                  OR: [
-                    {
-                      editorialRuns: {
-                        some: {
-                          createdAt: {
-                            gte: new Date(Date.now() - 7 * 86400000),
-                          },
-                        },
-                      },
-                    },
-                    {
-                      publishedAt: { gte: new Date(Date.now() - 7 * 86400000) },
-                    },
-                    {
-                      scheduledAt: { gte: new Date(Date.now() - 7 * 86400000) },
-                    },
-                  ],
-                },
-              },
+              where: { mediaId: existing.id, ...recentPhotoUse(articleId) },
             });
             return recentUse ? null : existing;
           }

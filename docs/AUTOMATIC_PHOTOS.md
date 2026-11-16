@@ -10,6 +10,8 @@ The article workflow now uses this sequence:
 
 Automatic discovery requires no image-provider key. Groq is used only for article text and photographic search terms; no image-generation or vision-model service is used. Unsplash remains manual. Reviewed original photos continue to work.
 
+Saved articles written or imported outside the scheduled workflow can now use **Automation → Automatic photo preparation**, or **Find and attach a real photo** in the article editor. A sequential batch prepares up to five missing images without generating text or publishing. See the [photo preparation guide](PHOTO_PREPARATION.md).
+
 ## Metadata policy
 
 A discovered candidate must have all of the following:

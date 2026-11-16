@@ -30,6 +30,10 @@ test("automatic Commons status explains the checks and queues only on explicit a
           timezone: "Asia/Colombo",
         },
       });
+    if (p === "/api/editorial/photo-queue")
+      return route.fulfill({
+        json: { automaticDiscovery: true, hasMore: false, articles: [] },
+      });
     if (p === "/api/editorial")
       return route.fulfill({
         json: {

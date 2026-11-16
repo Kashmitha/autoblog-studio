@@ -22,6 +22,16 @@ import {
 } from "class-validator";
 import { EditorialService } from "../application/editorial.service";
 import { SessionGuard } from "./auth";
+import { PhotoPreparationService } from "../application/photo-preparation.service";
+class PreparePhotoDto {
+  @IsInt() @Min(1) version!: number;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  @MaxLength(70, { each: true })
+  keywords?: string[];
+}
 class EditorialSettingsDto {
   @IsBoolean() enabled!: boolean;
   @IsBoolean() autoPublish!: boolean;
@@ -46,7 +56,19 @@ class PhotoPoolDto {
 @Controller("editorial")
 @UseGuards(SessionGuard)
 export class EditorialController {
-  constructor(private readonly editorial: EditorialService) {}
+  constructor(
+    private readonly editorial: EditorialService,
+    private readonly photos: PhotoPreparationService,
+  ) {}
+  @Get("photo-queue") @Header("Cache-Control", "no-store") photoQueue() {
+    return this.photos.queue();
+  }
+  @Post("articles/:id/prepare-photo") preparePhoto(
+    @Param("id") id: string,
+    @Body() input: PreparePhotoDto,
+  ) {
+    return this.photos.prepare(id, input.version, input.keywords);
+  }
   @Get() @Header("Cache-Control", "no-store") status() {
     return this.editorial.status();
   }
