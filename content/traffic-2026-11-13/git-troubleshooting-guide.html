@@ -1,0 +1,137 @@
+<p>
+  Choose a Git command from the change you want to inspect, not from a list of
+  commands to try. Staged edits, unstaged edits, untracked files and committed
+  history are different things. This guide points to focused walkthroughs for
+  each case, with a short diagnostic before you change anything.
+</p>
+<p>Start inside your repository:</p>
+<pre><code>git status --short
+git diff --stat
+git diff --cached --stat</code></pre>
+<p>
+  These inspect the current state. They do not clean your working folder, switch
+  branches or rewrite commits. An empty diff is not proof that you have no work:
+  the comparison may simply exclude the changes you are looking for.
+</p>
+<h2>A file is staged, but it should not be in the next commit</h2>
+<p>
+  Use the
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/how-to-unstage-file-in-git-without.html"
+    >guide to unstaging a file without losing its edits</a
+  >. This is for a change that should remain on disk while you decide what to
+  commit. It is different from discarding changes or removing a tracked file
+  from future snapshots.
+</p>
+<p>
+  Before running a command, identify the exact path and review its cached diff.
+  Use the path separator <code>--</code> and quote filenames containing spaces.
+  The walkthrough covers new files and partial staging as well as ordinary
+  tracked edits.
+</p>
+<h2>git diff is empty after git add</h2>
+<p>
+  The default diff compares your working copy with the index. After staging a
+  whole file, those versions can match even though the index differs from your
+  current commit. Read
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/why-git-diff-is-empty-after-git-add.html"
+    >why git diff is empty after git add</a
+  >
+  to choose the right comparison.
+</p>
+<p>
+  Try <code>git diff --cached -- your-file</code> to inspect the staged patch.
+  This does not require staging again or resetting anything. For the full
+  distinction, consult the
+  <a href="https://git-scm.com/docs/git-diff">official diff reference</a>.
+</p>
+<h2>A file still appears after adding it to .gitignore</h2>
+<p>
+  Ignore rules do not make an already tracked file disappear from the index. The
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/why-gitignore-does-not-ignore-tracked.html"
+    >tracked-file ignore walkthrough</a
+  >
+  helps distinguish an unmatched pattern from an already tracked path.
+</p>
+<p>
+  Stopping tracking a configuration file changes future commits and can affect
+  collaborators when they pull. It also does not erase an old secret from
+  repository history. If credentials were committed, treat rotation and history
+  cleanup as separate work; an ignore rule is not a security fix.
+</p>
+<h2>git stash says there are no local changes</h2>
+<p>
+  First check whether the files are tracked, untracked or ignored. The
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/why-git-stash-says-no-local-changes.html"
+    >untracked-file stash guide</a
+  >
+  explains why a normal stash can omit the work you see in your folder.
+</p>
+<p>
+  Review what would be included before widening a stash operation. Ignored build
+  output and local settings may be large or sensitive. Avoid adding extra flags
+  merely to suppress a confusing message.
+</p>
+<h2>You want to remove generated files, but need a preview first</h2>
+<p>
+  Use the
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/how-to-preview-git-clean-without.html"
+    >git clean dry-run guide</a
+  >
+  before any deletion. Read the candidate paths and check ignored-file behavior.
+  The preview is an opportunity to stop, not a promise that everything shown is
+  safe to delete.
+</p>
+<p>
+  Untracked files can contain work that Git has never stored. A clean operation
+  is different from unstaging a tracked edit and is not a general repair
+  command.
+</p>
+<h2>You need to compare branches without disturbing local work</h2>
+<p>
+  The
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/how-to-compare-two-git-branches-without.html"
+    >branch-comparison walkthrough</a
+  >
+  compares committed snapshots without checking either branch out. It separates
+  an endpoint comparison from a three-dot merge-base comparison.
+</p>
+<p>
+  Choose the question first: do you want the difference between two branch tips,
+  or the changes on one side since a shared base? Local references may be stale;
+  a read-only comparison does not automatically fetch newer remote history.
+</p>
+<h2>You need the commit that last changed a line</h2>
+<p>
+  Use the
+  <a
+    href="https://devaitoolbox.blogspot.com/2026/11/how-to-find-which-git-commit-last.html"
+    >line-history guide using git blame</a
+  >, then inspect the resulting commit patch. Line attribution is a starting
+  point for investigation, not proof that its author caused a bug.
+</p>
+<p>
+  Whitespace-only changes, renames and local edits can change what you see. The
+  walkthrough shows how to narrow the line range and compare against committed
+  content.
+</p>
+<h2>When to stop and inspect further</h2>
+<p>
+  If short status reports an unresolved conflict, or a command refuses to
+  overwrite a differing staged version, do not force it to match a tutorial.
+  Inspect the index and working copy first. The
+  <a href="https://git-scm.com/docs/git-status">status output reference</a>
+  explains the columns and conflict states;
+  <a href="https://git-scm.com/docs/git-restore">git restore</a> documents the
+  difference between restoring the index and restoring working files.
+</p>
+<p>
+  Pick the single walkthrough that matches your current state. Keeping a narrow
+  path and reviewing the proposed patch is more useful than running several
+  unrelated cleanup commands.
+</p>
