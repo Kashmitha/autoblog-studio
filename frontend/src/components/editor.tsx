@@ -849,6 +849,18 @@ export default function Editor({
                   Open media library
                   <ExternalLink size={13} />
                 </Link>
+                <Link
+                  className="text-link small"
+                  href={`/media?provider=unsplash&q=${encodeURIComponent(doc.title.slice(0, 120))}`}
+                >
+                  Find an Unsplash photo for this article
+                </Link>
+                <p className="small subtle">
+                  A library import does not attach a photo to this article.
+                  Review a relevant real photograph, import it, return here and
+                  select it above. Attached images and attribution are included
+                  when Studio publishes or schedules the article.
+                </p>
               </section>
             </aside>
           </div>
