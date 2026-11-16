@@ -24,6 +24,8 @@ import { normalizeTopic } from "../domain/workflow";
 import sanitizeHtml from "sanitize-html";
 import { aiConfiguration } from "../domain/ai-config";
 import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
+import { CommonsPhotoService } from "./commons-photo.service";
+import { commonsAutoEnabled } from "../domain/commons-photo";
 
 export type EditorialInput = {
   enabled: boolean;
@@ -42,6 +44,7 @@ export class EditorialService {
     private readonly ai: AiService,
     private readonly media: MediaService,
     private readonly cloud: CloudPublishingService,
+    private readonly commons: CommonsPhotoService,
   ) {}
 
   private async context() {
@@ -149,7 +152,7 @@ export class EditorialService {
       publishingBlockers.push(
         "Complete the selected blog's live publishing checkpoint.",
       );
-    if (!eligiblePhotos.length)
+    if (!eligiblePhotos.length && !commonsAutoEnabled())
       publishingBlockers.push(
         "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash stays manual.",
       );
@@ -164,6 +167,7 @@ export class EditorialService {
       generationReady: c.paidReady,
       aiProvider: aiConfiguration().provider,
       aiFreePlan: aiConfiguration().free,
+      automaticCommonsDiscovery: commonsAutoEnabled(),
       enablePhrase: aiConfiguration().free
         ? "ENABLE EDITORIAL DRAFTS"
         : EDITORIAL_ENABLE,
@@ -623,12 +627,12 @@ export class EditorialService {
         });
         return;
       }
-      const terms = Array.isArray(generation.imageSearchTerms)
+      const searchTerms = Array.isArray(generation.imageSearchTerms)
         ? generation.imageSearchTerms
             .filter((term): term is string => typeof term === "string")
             .slice(0, 5)
-            .join(" ")
-        : "";
+        : [];
+      const terms = searchTerms.join(" ");
       const photos = await this.db.mediaAsset.findMany({
         where: {
           rightsConfirmed: true,
@@ -654,7 +658,15 @@ export class EditorialService {
         },
         take: 200,
       });
-      const photo = choosePhoto(photos, `${a.title} ${a.intent} ${terms}`);
+      let photo = choosePhoto(photos, `${a.title} ${a.intent} ${terms}`);
+      if (!photo && commonsAutoEnabled()) {
+        await this.active(run);
+        try {
+          photo = await this.commons.discover(searchTerms, a.id);
+        } catch {
+          /* Discovery failure retains the text draft for review. */
+        }
+      }
       if (!photo) {
         let candidates: Prisma.InputJsonValue = [];
         try {
@@ -676,7 +688,7 @@ export class EditorialService {
             candidates,
             finishedAt: new Date(),
             message:
-              "No relevant recently reviewed photo is available. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regeneration.",
+              "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text.",
           },
         });
         return;

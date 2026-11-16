@@ -223,6 +223,12 @@ export function MediaLibrary({ notify }: ViewProps) {
                 <div>
                   <h3>{m.title}</h3>
                   <p className="small subtle">{m.attribution}</p>
+                  {m.metadata?.commonsAutoReview && (
+                    <p className="small subtle">
+                      Imported by automatic Commons metadata checks. See the
+                      photo workflow for any additional owner review.
+                    </p>
+                  )}
                   <div className="inline spread">
                     <Badge value={m.provider} />
                     {m.provider !== "ARCHIVE" && (

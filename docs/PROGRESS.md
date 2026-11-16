@@ -1,8 +1,10 @@
 # Progress
 
-Last updated: 15 November 2026, Asia/Colombo.
+Last updated: 16 November 2026, Asia/Colombo.
 
-15 November Groq checkpoint: Free-plan and paid Groq adapters are implemented alongside OpenAI, with private key separation, strict structured output, bounded usage and a model-access test. Google connection test now succeeds for the selected blog. Seven source-backed briefs and one eligible photo are available. Generation and automation remain disabled; the private key and owner Free-plan confirmation are still required. Prepare enough related unused photos and verify two Blogger-hosted schedules for 16 November before relying on PC-off publishing. No real model call, upload or publication was performed. See [Groq setup](GROQ_KEY_SETUP.md).
+16 November automatic photos: Commons discovery/import is installed and enabled locally. Library photos are used first; missing matches invoke bounded primary-provider searches with license, camera/date, source, size and relevance checks, explicit automated provenance, duplicate/recent-use checks and attribution. A live metadata check found passing candidates, and one photo was imported without changing articles, policy or Blogger. Groq and Google access are configured; global automation remains paused and the editorial policy disabled. See [automatic photos](AUTOMATIC_PHOTOS.md).
+
+Historical 15 November Groq checkpoint: Free-plan and paid Groq adapters are implemented alongside OpenAI, with private key separation, strict structured output, bounded usage and a model-access test. Google connection test now succeeds for the selected blog. Seven source-backed briefs and one eligible photo are available. Generation and automation remain disabled; the private key and owner Free-plan confirmation are still required. Prepare enough related unused photos and verify two Blogger-hosted schedules for 16 November before relying on PC-off publishing. No real model call, upload or publication was performed. See [Groq setup](GROQ_KEY_SETUP.md).
 
 15 November topic variety: source-backed starter briefs and optional refill now span six developer areas, with priority-aware category rotation. The article editor links to title-prefilled manual Unsplash search and explains library import versus article attachment. Existing published posts are not changed. See [editorial workflow](EDITORIAL_PIPELINE.md).
 

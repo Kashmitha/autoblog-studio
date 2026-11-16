@@ -65,6 +65,7 @@ Open [AutoBlog Studio](http://localhost:3100/) for the publishing workspace. The
 - [Adsterra reports and saved history](docs/AD_REPORTS.md)
 - [Weekly review and next actions](docs/WEEKLY_REVIEW.md)
 - [Automated text, real-photo selection and Blogger scheduling](docs/EDITORIAL_PIPELINE.md)
+- [Automatic Commons photo discovery and provider options](docs/AUTOMATIC_PHOTOS.md)
 - [Completed-feature GitHub checkpoints](docs/GITHUB_WORKFLOW.md)
 - [Integration contracts & official sources](docs/INTEGRATIONS.md)
 - [Costs & profitability](docs/OPERATING_COSTS.md)

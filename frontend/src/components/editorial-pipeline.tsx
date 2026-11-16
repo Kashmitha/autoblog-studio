@@ -21,7 +21,9 @@ type PoolPhoto = {
   provider: string;
   sourceUrl: string;
   eligible: boolean;
-  metadata: { editorialPhoto?: { enabled: boolean; tags: string[] } };
+  metadata: {
+    editorialPhoto?: { enabled: boolean; tags: string[]; reviewKind?: string };
+  };
 };
 export type EditorialStatus = {
   settings: Policy;
@@ -29,6 +31,7 @@ export type EditorialStatus = {
   paidReady: boolean;
   aiProvider?: string;
   aiFreePlan?: boolean;
+  automaticCommonsDiscovery?: boolean;
   enablePhrase?: string;
   monthlyLimitUsd: number | null;
   draftBlockers: string[];
@@ -109,6 +112,11 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               ? formatDate(data.workerLastSeen, true)
               : "Not seen"}
             .
+          </p>
+          <p className="small subtle">
+            {data.automaticCommonsDiscovery
+              ? "Automatic Commons discovery is enabled. The workflow uses your reviewed library first, then checks Commons candidates for a reusable license, attribution, subject match and pre-2022 camera/file metadata. This is automated metadata review, not human verification or a guarantee of non-AI origin. If no candidate passes, the draft waits for image review."
+              : "Automatic Commons discovery is disabled; images are chosen from your reviewed library."}
           </p>
           {!data.paidReady && (
             <section
@@ -239,7 +247,7 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
             <div>
               <h3>2. Real-photo pool</h3>
               <p className="small subtle">
-                First search and import a licensed photograph in{" "}
+                You can search and import a licensed photograph in{" "}
                 <Link href="/media" className="text-link">
                   Media library
                 </Link>
@@ -249,8 +257,10 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               </p>
               <p className="small subtle">
                 Unsplash's current API guidelines specify non-automated use, so
-                its picker remains manual. Commons discovery provides
-                candidates, not automatic license or photo-origin certification.
+                its picker remains manual. Automatic Commons discovery can
+                supplement this pool when enabled. Its metadata checks do not
+                certify licensing or photo origin; uncertain candidates still
+                need review.
               </p>
               <Field label="Reviewed photograph">
                 <select
@@ -280,6 +290,13 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                   <p className="small">
                     {selected.title} · {selected.license} · {selected.provider}
                   </p>
+                  {selected.metadata.editorialPhoto?.reviewKind ===
+                    "AUTOMATIC_COMMONS_METADATA" && (
+                    <p className="small subtle">
+                      Review method: automatic Commons metadata policy. You can
+                      inspect the source and record your own review below.
+                    </p>
+                  )}
                   <Field label="Photo keywords (comma-separated)">
                     <input
                       maxLength={500}

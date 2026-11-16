@@ -9,6 +9,7 @@ import {
 } from "../infrastructure/ai.provider";
 import { AiService } from "../application/ai.service";
 import { MediaService } from "../application/media.service";
+import { CommonsPhotoService } from "../application/commons-photo.service";
 import { ReportingService } from "../application/reporting.service";
 import { TrafficSyncService } from "../application/traffic-sync.service";
 import { SearchConsoleService } from "../application/search-console.service";
@@ -24,6 +25,7 @@ import { MetricsModule } from "./metrics.module";
     LiveBloggerAdapter,
     AiService,
     MediaService,
+    CommonsPhotoService,
     ReportingService,
     TrafficSyncService,
     SearchConsoleService,
@@ -37,6 +39,7 @@ import { MetricsModule } from "./metrics.module";
     LiveBloggerAdapter,
     AiService,
     MediaService,
+    CommonsPhotoService,
     ReportingService,
     TrafficSyncService,
     SearchConsoleService,

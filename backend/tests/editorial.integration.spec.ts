@@ -7,6 +7,7 @@ import { EditorialService } from "../src/application/editorial.service";
 import { AiService } from "../src/application/ai.service";
 import { ArticlesService } from "../src/application/articles.service";
 import { MediaService } from "../src/application/media.service";
+import { CommonsPhotoService } from "../src/application/commons-photo.service";
 import { CloudPublishingService } from "../src/application/cloud-publishing.service";
 import { hashPassword } from "../src/domain/security";
 import {
@@ -25,6 +26,7 @@ let generated = 0,
   uncertain = false,
   cloudFails = false;
 const envNames = [
+  "COMMONS_AUTO_IMPORT",
   "AI_PROVIDER",
   "GROQ_API_KEY",
   "GROQ_PLAN",
@@ -78,6 +80,7 @@ beforeEach(async () => {
   uncertain = false;
   cloudFails = false;
   Object.assign(process.env, {
+    COMMONS_AUTO_IMPORT: "false",
     AI_PROVIDER: "openai",
     AI_ENABLED: "true",
     AI_BILLING_AUTHORIZED: "true",
@@ -391,6 +394,69 @@ test("missing real-photo match blocks; owner can resume the saved photo stage wi
       .stage,
   ).toBe("READY");
   expect(generated).toBe(1);
+});
+test("automatic Commons discovery attaches an audited photo before standing-policy scheduling", async () => {
+  process.env.COMMONS_AUTO_IMPORT = "true";
+  const discover = jest
+    .spyOn(app.get(CommonsPhotoService), "discover")
+    .mockImplementation(async () =>
+      db.mediaAsset.create({
+        data: {
+          title: "Laptop camera photo.jpg",
+          url: "https://upload.wikimedia.org/wikipedia/commons/test/Laptop.jpg",
+          alt: "Illustrative photograph: laptop on a desk",
+          creator: "Fixture photographer",
+          sourceUrl: "https://commons.wikimedia.org/?curid=123",
+          provider: "WIKIMEDIA",
+          license: "CC BY 4.0",
+          licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+          attribution:
+            "Photo by Fixture photographer · CC BY 4.0 · Wikimedia Commons",
+          rightsConfirmed: true,
+          metadata: {
+            commonsAutoReview: { humanReviewed: false },
+            editorialPhoto: {
+              enabled: true,
+              tags: ["laptop"],
+              confirmedAt: new Date().toISOString(),
+              reviewKind: "AUTOMATIC_COMMONS_METADATA",
+            },
+          },
+        },
+      }),
+    );
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow({
+    include: { article: { include: { media: { include: { media: true } } } } },
+  });
+  expect(run.state).toBe("SCHEDULED");
+  expect(run.article?.media[0].media.attribution).toContain(
+    "Fixture photographer",
+  );
+  expect(run.article?.media[0].media.metadata).toMatchObject({
+    commonsAutoReview: { humanReviewed: false },
+  });
+  expect(discover).toHaveBeenCalledTimes(1);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+test("automatic photo failure preserves the generated draft and makes no publication attempt", async () => {
+  process.env.COMMONS_AUTO_IMPORT = "true";
+  jest
+    .spyOn(app.get(CommonsPhotoService), "discover")
+    .mockRejectedValue(new Error("Commons fixture outage"));
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow({
+    include: { article: true },
+  });
+  expect(run.state).toBe("BLOCKED_MEDIA");
+  expect(run.article?.html).not.toBe("");
+  expect(generated).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
 });
 test.each(["openai", "groq"])(
   "%s standing auto policy schedules at most two slots and records automated rather than human approval",
