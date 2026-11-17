@@ -43,6 +43,7 @@ export type EditorialStatus = {
   nextSlots: { key: string; at: string }[];
   runs: {
     id: string;
+    photoRetries?: number;
     slotKey: string;
     slotAt: string;
     state: string;
@@ -597,6 +598,15 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                           </Link>
                         )}
                         <p className="small">{run.message}</p>
+                        {(run.state === "BLOCKED_MEDIA" ||
+                          !!run.photoRetries) && (
+                          <p className="small subtle">
+                            Automatic photo retries: {run.photoRetries || 0}/3.
+                            Retries require automatic publishing, an unchanged
+                            draft and more than ten minutes before the slot. No
+                            text regeneration.
+                          </p>
+                        )}
                         {run.article &&
                           ["SCHEDULED", "PUBLISHED"].includes(
                             run.article.status,

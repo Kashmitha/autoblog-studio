@@ -141,6 +141,14 @@ export class EditorialService {
         },
       },
     });
+    const retries = await this.db.auditLog.groupBy({
+      by: ["entityId"],
+      where: {
+        action: "EDITORIAL_PHOTO_AUTO_RETRY",
+        entityId: { in: runs.map((run) => run.id) },
+      },
+      _count: { _all: true },
+    });
     const eligiblePhotos = c.photos.filter(
       (photo) => photoPolicy(photo) && !photo.articles.length,
     );
@@ -203,7 +211,11 @@ export class EditorialService {
           !!(photo.metadata as { automaticPhotoUse?: unknown } | null)
             ?.automaticPhotoUse,
       })),
-      runs,
+      runs: runs.map((run) => ({
+        ...run,
+        photoRetries:
+          retries.find((row) => row.entityId === run.id)?._count._all || 0,
+      })),
       nextSlots: editorialSlots(c.settings.times, new Date(), true).slice(0, 2),
       workerLastSeen: c.heartbeat?.lastSeen || null,
     };
@@ -444,6 +456,75 @@ export class EditorialService {
       );
     return policy;
   }
+  /** Retry only saved, unchanged photo-blocked drafts; never replay text or remote writes. */
+  private async recoverPhotos() {
+    await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172260)`;
+      const policy = await tx.editorialSettings.findUnique({
+        where: { id: "owner" },
+      });
+      const automation = await tx.automationSettings.findUnique({
+        where: { id: "owner" },
+      });
+      const google = await tx.integration.findUnique({
+        where: { provider: "google" },
+        select: { blogId: true },
+      });
+      if (
+        !policy?.enabled ||
+        !policy.autoPublish ||
+        automation?.paused ||
+        automation?.emergencyStop
+      )
+        return;
+      const now = new Date();
+      const runs = await tx.editorialRun.findMany({
+        where: {
+          state: "BLOCKED_MEDIA",
+          stage: "PHOTO",
+          policyRevision: policy.revision,
+          blogId: google?.blogId || null,
+          slotAt: { gt: new Date(now.getTime() + 10 * 60000) },
+          finishedAt: { lte: new Date(now.getTime() - 2 * 60000) },
+        },
+        orderBy: { slotAt: "asc" },
+        take: 2,
+      });
+      for (const run of runs) {
+        if (!run.articleId) continue;
+        const count = await tx.auditLog.count({
+          where: { action: "EDITORIAL_PHOTO_AUTO_RETRY", entityId: run.id },
+        });
+        if (count >= 3) continue;
+        const article = await tx.article.findUnique({
+          where: { id: run.articleId },
+        });
+        if (
+          !article ||
+          article.version !== run.articleVersion ||
+          article.status !== "NEEDS_REVIEW" ||
+          article.publishingTarget !== "local"
+        )
+          continue;
+        const changed = await tx.editorialRun.updateMany({
+          where: { id: run.id, state: "BLOCKED_MEDIA", stage: "PHOTO" },
+          data: {
+            state: "QUEUED",
+            finishedAt: null,
+            message: `Automatic photo retry ${count + 1}/3 queued. Uses the saved draft; no text regeneration.`,
+          },
+        });
+        if (changed.count)
+          await tx.auditLog.create({
+            data: {
+              action: "EDITORIAL_PHOTO_AUTO_RETRY",
+              entityId: run.id,
+              message: `Attempt ${count + 1}/3 for unchanged saved draft ${article.id}.`,
+            },
+          });
+      }
+    });
+  }
   async tick() {
     if (this.ticking) return;
     this.ticking = true;
@@ -468,6 +549,7 @@ export class EditorialService {
         c.automation?.emergencyStop
       )
         return;
+      await this.recoverPhotos();
       if (
         !(await this.db.editorialRun.findFirst({ where: { state: "QUEUED" } }))
       ) {
@@ -649,7 +731,7 @@ export class EditorialService {
             candidates,
             finishedAt: new Date(),
             message:
-              "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text.",
+              "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text. With automatic publishing enabled, Studio also retries this saved photo stage up to three times, two minutes apart, while the slot is more than ten minutes away.",
           },
         });
         return;

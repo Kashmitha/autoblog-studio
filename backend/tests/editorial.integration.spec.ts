@@ -566,3 +566,103 @@ test("pause, changed destination and expired policy prevent generation; starter 
   expect((await service.starters()).created).toBe(referenceBriefs.length);
   expect((await service.starters()).created).toBe(0);
 });
+
+async function blockedAutomaticPhotoRun() {
+  const image = await pool();
+  await enable(true);
+  await db.mediaAsset.delete({ where: { id: image.id } });
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("BLOCKED_MEDIA");
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: {
+      slotAt: new Date(Date.now() + 60 * 60000),
+      finishedAt: new Date(Date.now() - 3 * 60000),
+    },
+  });
+  return run;
+}
+const recoverPhotos = () =>
+  (service as unknown as { recoverPhotos(): Promise<void> }).recoverPhotos();
+
+test("automatic photo recovery resumes a saved draft after refill without regenerating text", async () => {
+  const run = await blockedAutomaticPhotoRun();
+  await pool(1);
+  await recoverPhotos();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("QUEUED");
+  await service.tick();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("SCHEDULED");
+  expect(generated).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test("photo recovery has a durable three-attempt budget and two-minute cooldown", async () => {
+  const run = await blockedAutomaticPhotoRun();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await recoverPhotos();
+    expect(
+      await db.auditLog.count({
+        where: { action: "EDITORIAL_PHOTO_AUTO_RETRY", entityId: run.id },
+      }),
+    ).toBe(attempt + 1);
+    await db.editorialRun.update({
+      where: { id: run.id },
+      data: { state: "BLOCKED_MEDIA", finishedAt: new Date() },
+    });
+    await recoverPhotos();
+    expect(
+      (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .state,
+    ).toBe("BLOCKED_MEDIA");
+    await db.editorialRun.update({
+      where: { id: run.id },
+      data: { finishedAt: new Date(Date.now() - 3 * 60000) },
+    });
+  }
+  await recoverPhotos();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("BLOCKED_MEDIA");
+  expect(generated).toBe(1);
+});
+
+test("photo recovery respects pause, scheduling window and draft version", async () => {
+  const run = await blockedAutomaticPhotoRun();
+  await db.automationSettings.update({
+    where: { id: "owner" },
+    data: { paused: true },
+  });
+  await recoverPhotos();
+  await db.automationSettings.update({
+    where: { id: "owner" },
+    data: { paused: false },
+  });
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { slotAt: new Date(Date.now() + 5 * 60000) },
+  });
+  await recoverPhotos();
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { slotAt: new Date(Date.now() + 60 * 60000) },
+  });
+  await db.article.update({
+    where: { id: run.articleId! },
+    data: { version: { increment: 1 } },
+  });
+  await recoverPhotos();
+  expect(
+    await db.auditLog.count({
+      where: { action: "EDITORIAL_PHOTO_AUTO_RETRY", entityId: run.id },
+    }),
+  ).toBe(0);
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("BLOCKED_MEDIA");
+});
