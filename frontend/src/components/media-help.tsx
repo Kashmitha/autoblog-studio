@@ -35,6 +35,9 @@ export function MediaLibrary({ notify }: ViewProps) {
   const r = useResource<Media[]>("/media"),
     integrations = useResource<Integrations>("/integrations"),
     a = useAction(notify);
+  const [usageFilter, setUsageFilter] = useState("all");
+  const isUsed = (m: Media) =>
+    !!m._count?.articles || !!m.metadata?.automaticPhotoUse;
   const [q, setQ] = useState(""),
     [provider, setProvider] = useState("wikimedia"),
     [results, setResults] = useState<Partial<Media>[]>([]),
@@ -185,6 +188,7 @@ export function MediaLibrary({ notify }: ViewProps) {
                 />
                 <div>
                   <h3>{m.title}</h3>
+
                   <p className="small subtle">
                     {m.creator} · {m.license}
                   </p>
@@ -204,80 +208,121 @@ export function MediaLibrary({ notify }: ViewProps) {
             {r.data?.length || 0} rights records
           </span>
         </div>
+        <div
+          className="inline wrap"
+          role="group"
+          aria-label="Library usage filters"
+        >
+          {["all", "unused", "used"].map((value) => (
+            <button
+              key={value}
+              className="secondary"
+              aria-pressed={usageFilter === value}
+              onClick={() => setUsageFilter(value)}
+            >
+              {value === "all"
+                ? "All images"
+                : value === "used"
+                  ? "Used / reserved"
+                  : "Unused"}{" "}
+              (
+              {r.data?.filter(
+                (m) =>
+                  value === "all" ||
+                  (value === "used" ? isUsed(m) : !isUsed(m)),
+              ).length || 0}
+              )
+            </button>
+          ))}
+          <Link className="text-link" href="/automation">
+            Review automatic photo pool
+          </Link>
+        </div>
         <ResourceState {...r} />
         {r.data?.length ? (
           <div className="media-grid">
-            {r.data.map((m) => (
-              <div className="panel media-card" key={m.id}>
-                {m.provider === "ARCHIVE" ? (
-                  <div className="padded">
-                    <FileImage size={28} />
-                    <p className="small subtle">
-                      Archived credit reference. Re-add the original before
-                      using this image.
-                    </p>
-                  </div>
-                ) : (
-                  <img src={m.url} alt={m.alt} loading="lazy" />
-                )}
-                <div>
-                  <h3>{m.title}</h3>
-                  <p className="small subtle">{m.attribution}</p>
-                  {m.metadata?.commonsAutoReview && (
-                    <p className="small subtle">
-                      Imported by automatic Commons metadata checks. See the
-                      photo workflow for any additional owner review.
-                    </p>
+            {r.data
+              .filter(
+                (m) =>
+                  usageFilter === "all" ||
+                  (usageFilter === "used" ? isUsed(m) : !isUsed(m)),
+              )
+              .map((m) => (
+                <div className="panel media-card" key={m.id}>
+                  {m.provider === "ARCHIVE" ? (
+                    <div className="padded">
+                      <FileImage size={28} />
+                      <p className="small subtle">
+                        Archived credit reference. Re-add the original before
+                        using this image.
+                      </p>
+                    </div>
+                  ) : (
+                    <img src={m.url} alt={m.alt} loading="lazy" />
                   )}
-                  <div className="inline spread">
-                    <Badge value={m.provider} />
-                    {m.provider !== "ARCHIVE" && (
-                      <a
-                        className="text-link small"
-                        href={m.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                  <div>
+                    <h3>{m.title}</h3>
+                    <span className="small subtle">
+                      {isUsed(m) ? "Used / reserved" : "Unused"}
+                    </span>
+                    <p className="small subtle">{m.attribution}</p>
+                    {m.metadata?.commonsAutoReview && (
+                      <p className="small subtle">
+                        Imported by automatic Commons metadata checks. See the
+                        photo workflow for any additional owner review.
+                      </p>
+                    )}
+                    <div className="inline spread">
+                      <Badge value={m.provider} />
+                      {m.provider !== "ARCHIVE" && (
+                        <a
+                          className="text-link small"
+                          href={m.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Source
+                          <ExternalLink size={13} />
+                        </a>
+                      )}
+                    </div>
+                    <small className="subtle">
+                      {m.provider === "ARCHIVE"
+                        ? "Rights need a fresh review"
+                        : "Rights checked " +
+                          new Date(m.checkedAt).toLocaleDateString()}
+                    </small>
+                    {m.provider === "ARCHIVE" && (
+                      <p className="small break-url">
+                        {m.creator} · {m.license}. Re-add the image using the
+                        import form, review rights, then replace this reference
+                        in the article. Source reference:{" "}
+                        {m.sourceUrl || "Not recorded"}
+                      </p>
+                    )}
+                    {m.provider === "ORIGINAL" && (
+                      <button
+                        className="text-button small"
+                        onClick={() => {
+                          setDelivery(m);
+                          setPublicUrl(
+                            m.url.startsWith("https://") ? m.url : "",
+                          );
+                        }}
                       >
-                        Source
-                        <ExternalLink size={13} />
-                      </a>
+                        Set public delivery URL
+                      </button>
                     )}
+                    {m.provider !== "ARCHIVE" &&
+                      !m.url.startsWith("https://") && (
+                        <Notice tone="warning">
+                          Private original. Public HTTPS hosting is required
+                          before publication.
+                        </Notice>
+                      )}
                   </div>
-                  <small className="subtle">
-                    {m.provider === "ARCHIVE"
-                      ? "Rights need a fresh review"
-                      : "Rights checked " +
-                        new Date(m.checkedAt).toLocaleDateString()}
-                  </small>
-                  {m.provider === "ARCHIVE" && (
-                    <p className="small break-url">
-                      {m.creator} · {m.license}. Re-add the image using the
-                      import form, review rights, then replace this reference in
-                      the article. Source reference:{" "}
-                      {m.sourceUrl || "Not recorded"}
-                    </p>
-                  )}
-                  {m.provider === "ORIGINAL" && (
-                    <button
-                      className="text-button small"
-                      onClick={() => {
-                        setDelivery(m);
-                        setPublicUrl(m.url.startsWith("https://") ? m.url : "");
-                      }}
-                    >
-                      Set public delivery URL
-                    </button>
-                  )}
-                  {m.provider !== "ARCHIVE" &&
-                    !m.url.startsWith("https://") && (
-                      <Notice tone="warning">
-                        Private original. Public HTTPS hosting is required
-                        before publication.
-                      </Notice>
-                    )}
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         ) : (
           <section className="panel">

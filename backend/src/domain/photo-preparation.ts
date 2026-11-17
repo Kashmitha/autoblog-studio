@@ -60,3 +60,10 @@ export function recentPhotoUse(
     },
   };
 }
+
+/** Any existing attachment reserves a photo, regardless of publication age. */
+export function previousPhotoUse(
+  articleId: string,
+): Prisma.ArticleMediaWhereInput {
+  return { articleId: { not: articleId } };
+}

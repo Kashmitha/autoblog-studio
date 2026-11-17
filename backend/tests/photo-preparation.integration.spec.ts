@@ -294,3 +294,39 @@ test("pool rights revoked after selection cannot be attached", async () => {
     (await db.article.findUniqueOrThrow({ where: { id: a.id } })).version,
   ).toBe(a.version);
 });
+
+test("automatic photo stays consumed after detaching and re-reviewing its pool entry", async () => {
+  const first = await draft();
+  const asset = await photo();
+  const attached = await photos.prepare(first.id, first.version);
+  expect(attached.state).toBe("ATTACHED");
+  await db.articleMedia.deleteMany({ where: { articleId: first.id } });
+  const saved = await db.mediaAsset.findUniqueOrThrow({
+    where: { id: asset.id },
+  });
+  expect((saved.metadata as any).automaticPhotoUse.articleId).toBe(first.id);
+  const second = await draft(2);
+  const result = await photos.prepare(second.id, second.version);
+  expect(result.state).toBe("BLOCKED");
+  expect(await db.articleMedia.count({ where: { articleId: second.id } })).toBe(
+    0,
+  );
+});
+
+test("a photo on an old published article is never recycled automatically", async () => {
+  const old = await draft();
+  const asset = await photo();
+  await db.article.update({
+    where: { id: old.id },
+    data: {
+      status: "PUBLISHED",
+      publishedAt: new Date("2020-01-01"),
+      updatedAt: new Date("2020-01-01"),
+    },
+  });
+  await db.articleMedia.create({
+    data: { articleId: old.id, mediaId: asset.id },
+  });
+  const next = await draft(3);
+  expect((await photos.prepare(next.id, next.version)).state).toBe("BLOCKED");
+});

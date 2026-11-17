@@ -21,6 +21,7 @@ type PoolPhoto = {
   provider: string;
   sourceUrl: string;
   eligible: boolean;
+  used?: boolean;
   metadata: {
     editorialPhoto?: { enabled: boolean; tags: string[]; reviewKind?: string };
   };
@@ -69,6 +70,7 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
   const phrase = policy?.autoPublish
     ? "AUTHORIZE AUTOMATIC EDITORIAL PUBLISHING"
     : data?.enablePhrase || "ENABLE PAID EDITORIAL DRAFTS";
+  const [poolFilter, setPoolFilter] = useState("unused");
   const selected = data?.pool.find((photo) => photo.id === photoId);
   return (
     <section
@@ -248,8 +250,8 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               <h3>2. Real-photo pool (optional with Commons discovery)</h3>
               <p className="small subtle">
                 You do not need to select a photo here for each post. This
-                section adds manually reviewed photos to the reusable pool; the
-                enabled workflow selects images automatically.
+                section adds manually reviewed photos to the single-use pool;
+                the enabled workflow selects images automatically.
               </p>
               <p className="small subtle">
                 You can search and import a licensed photograph in{" "}
@@ -257,8 +259,9 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                   Media library
                 </Link>
                 . Then confirm its real-photo origin and rights here. The
-                workflow reuses eligible pool photos only when keywords match;
-                photos used in the last seven days are skipped.
+                workflow chooses an unused eligible photo only when keywords
+                match. Photos already attached to an article are skipped, even
+                after seven days.
               </p>
               <p className="small subtle">
                 Unsplash's current API guidelines specify non-automated use, so
@@ -266,6 +269,54 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                 supplement this pool when enabled. Its metadata checks do not
                 certify licensing or photo origin; uncertain candidates still
                 need review.
+              </p>
+              <div
+                className="inline wrap"
+                role="group"
+                aria-label="Photo pool filters"
+              >
+                {[
+                  ["unused", "Unused"],
+                  ["used", "Used"],
+                  ["review", "Needs review"],
+                  ["all", "All"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    className="secondary"
+                    aria-pressed={poolFilter === value}
+                    onClick={() => {
+                      setPoolFilter(value);
+                      setPhotoId("");
+                    }}
+                  >
+                    {label} (
+                    {
+                      data.pool.filter(
+                        (p) =>
+                          value === "all" ||
+                          (value === "used"
+                            ? p.used
+                            : value === "review"
+                              ? !p.used && !p.eligible
+                              : !p.used && p.eligible),
+                      ).length
+                    }
+                    )
+                  </button>
+                ))}
+              </div>
+              {!data.pool.some((p) => p.eligible) && (
+                <Notice tone="warning">
+                  No unused reviewed photos are ready. Refill the pool with
+                  relevant photographs. Automatic Commons discovery may still
+                  supply a match when enabled.
+                </Notice>
+              )}
+              <p className="small subtle">
+                Used includes photos reserved by drafts and scheduled posts.
+                Automatic attachments stay used even if later detached. At two
+                posts per day, 20 suitable unused photos cover up to 10 days.
               </p>
               <Field label="Reviewed photograph">
                 <select
@@ -282,12 +333,26 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                   }}
                 >
                   <option value="">Choose an imported photograph</option>
-                  {data.pool.map((photo) => (
-                    <option key={photo.id} value={photo.id}>
-                      {photo.title} ·{" "}
-                      {photo.eligible ? "Pool ready" : "Needs pool review"}
-                    </option>
-                  ))}
+                  {data.pool
+                    .filter(
+                      (p) =>
+                        poolFilter === "all" ||
+                        (poolFilter === "used"
+                          ? p.used
+                          : poolFilter === "review"
+                            ? !p.used && !p.eligible
+                            : !p.used && p.eligible),
+                    )
+                    .map((photo) => (
+                      <option key={photo.id} value={photo.id}>
+                        {photo.title} ·{" "}
+                        {photo.used
+                          ? "Used / reserved"
+                          : photo.eligible
+                            ? "Unused / ready"
+                            : "Needs pool review"}
+                      </option>
+                    ))}
                 </select>
               </Field>
               {selected && (

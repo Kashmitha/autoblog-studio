@@ -12,7 +12,7 @@ import { safeHtml, checkQuality } from "../domain/quality";
 import { assertTransition } from "../domain/workflow";
 import { publicGet } from "../infrastructure/public-http";
 import { photoPolicy } from "../domain/editorial";
-import { recentPhotoUse } from "../domain/photo-preparation";
+import { previousPhotoUse } from "../domain/photo-preparation";
 export const articleInclude = {
   sources: true,
   media: { include: { media: true } },
@@ -309,11 +309,11 @@ export class ArticlesService {
       if (
         !photoPolicy(photo) ||
         (await tx.articleMedia.count({
-          where: { mediaId, ...recentPhotoUse(id) },
+          where: { mediaId, ...previousPhotoUse(id) },
         }))
       )
         throw new ConflictException(
-          "Photo eligibility or recent use changed. Refresh and try another image.",
+          "Photo eligibility changed or this photo was already used. Choose an unused image.",
         );
       const changed = await tx.article.updateMany({
         where: {
@@ -331,6 +331,18 @@ export class ArticlesService {
       if (!changed.count)
         throw new ConflictException("Draft changed while preparing its image.");
       await tx.articleMedia.create({ data: { articleId: id, mediaId } });
+      await tx.mediaAsset.update({
+        where: { id: mediaId },
+        data: {
+          metadata: {
+            ...(photo.metadata as Prisma.JsonObject),
+            automaticPhotoUse: {
+              articleId: id,
+              usedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
       await tx.auditLog.create({
         data: {
           action: "ARTICLE_PHOTO_AUTOMATICALLY_ATTACHED",

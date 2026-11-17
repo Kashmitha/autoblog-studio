@@ -60,7 +60,10 @@ export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
     };
   } | null;
   const approved = meta?.editorialPhoto;
+  const consumed = (photo.metadata as { automaticPhotoUse?: unknown } | null)
+    ?.automaticPhotoUse;
   return (
+    !consumed &&
     photo.rightsConfirmed &&
     ["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) &&
     [

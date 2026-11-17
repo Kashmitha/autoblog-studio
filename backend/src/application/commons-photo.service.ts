@@ -7,7 +7,10 @@ import {
   type CommonsFile,
 } from "../domain/commons-photo";
 import { choosePhoto, photoPolicy } from "../domain/editorial";
-import { recentPhotoUse, type PhotoArticle } from "../domain/photo-preparation";
+import {
+  previousPhotoUse,
+  type PhotoArticle,
+} from "../domain/photo-preparation";
 
 @Injectable()
 export class CommonsPhotoService {
@@ -17,7 +20,7 @@ export class CommonsPhotoService {
       where: {
         rightsConfirmed: true,
         provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
-        articles: { none: recentPhotoUse(article.id) },
+        articles: { none: previousPhotoUse(article.id) },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -108,7 +111,7 @@ export class CommonsPhotoService {
           if (existing) {
             if (!photoPolicy(existing)) return null;
             const recentUse = await tx.articleMedia.count({
-              where: { mediaId: existing.id, ...recentPhotoUse(articleId) },
+              where: { mediaId: existing.id, ...previousPhotoUse(articleId) },
             });
             return recentUse ? null : existing;
           }

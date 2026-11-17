@@ -69,6 +69,7 @@ export class EditorialService {
             rightsConfirmed: true,
             provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
           },
+          include: { articles: { select: { articleId: true } } },
           orderBy: { createdAt: "desc" },
           take: 200,
         }),
@@ -140,7 +141,9 @@ export class EditorialService {
         },
       },
     });
-    const eligiblePhotos = c.photos.filter((photo) => photoPolicy(photo));
+    const eligiblePhotos = c.photos.filter(
+      (photo) => photoPolicy(photo) && !photo.articles.length,
+    );
     const publishingBlockers = [...c.blockers];
     if (
       process.env.BLOGGER_MODE !== "live" ||
@@ -194,7 +197,11 @@ export class EditorialService {
             (photo.metadata as { editorialPhoto?: Prisma.JsonValue } | null)
               ?.editorialPhoto || null,
         },
-        eligible: photoPolicy(photo),
+        eligible: photoPolicy(photo) && !photo.articles.length,
+        used:
+          photo.articles.length > 0 ||
+          !!(photo.metadata as { automaticPhotoUse?: unknown } | null)
+            ?.automaticPhotoUse,
       })),
       runs,
       nextSlots: editorialSlots(c.settings.times, new Date(), true).slice(0, 2),
@@ -328,19 +335,16 @@ export class EditorialService {
       throw new BadRequestException(
         "Confirm a real photograph, commercial reuse rights, public HTTPS delivery and relevant keywords. Unsplash images cannot enter unattended selection.",
       );
-    const metadata =
-      photo.metadata &&
-      typeof photo.metadata === "object" &&
-      !Array.isArray(photo.metadata)
-        ? (photo.metadata as Prisma.JsonObject)
-        : {};
     await this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
+      const currentPhoto = await tx.mediaAsset.findUniqueOrThrow({
+        where: { id },
+      });
       await tx.mediaAsset.update({
         where: { id },
         data: {
           metadata: {
-            ...metadata,
+            ...(currentPhoto.metadata as Prisma.JsonObject),
             editorialPhoto: {
               enabled,
               tags,
