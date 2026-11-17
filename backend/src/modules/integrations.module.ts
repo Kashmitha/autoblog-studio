@@ -19,9 +19,15 @@ import { DiagnosticFetcher } from "../infrastructure/diagnostic-fetcher";
 import { FetchDiagnosticsService } from "../application/fetch-diagnostics.service";
 import { ArticlesModule } from "./articles.module";
 import { MetricsModule } from "./metrics.module";
+import { AnalyticsConnectionService } from "../application/analytics-connection.service";
+import { AnalyticsAdapter } from "../infrastructure/analytics.adapter";
+import { AnalyticsController } from "../api/analytics.controller";
 @Module({
   imports: [ArticlesModule, MetricsModule],
+  controllers: [AnalyticsController],
   providers: [
+    AnalyticsConnectionService,
+    AnalyticsAdapter,
     GoogleService,
     LiveBloggerAdapter,
     AiService,
@@ -37,6 +43,8 @@ import { MetricsModule } from "./metrics.module";
     { provide: AiProvider, useClass: ConfiguredAiProvider },
   ],
   exports: [
+    AnalyticsConnectionService,
+    AnalyticsAdapter,
     GoogleService,
     LiveBloggerAdapter,
     AiService,

@@ -272,6 +272,12 @@ model ReportingSettings {
   id String @id @default("owner")
   searchConsoleSiteUrl String?
   propertyVerifiedAt DateTime?
+  gaPropertyId String?
+  gaMeasurementId String?
+  gaBlogUrl String?
+  gaTimeZone String?
+  gaVerifiedAt DateTime?
+  gaRevision Int @default(0)
   updatedAt DateTime @updatedAt
 }
 model TrafficSync {
