@@ -149,7 +149,10 @@ export class StudioController {
     });
   }
   @Get("media") listMedia() {
-    return this.db.mediaAsset.findMany({ orderBy: { createdAt: "desc" } });
+    return this.db.mediaAsset.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { articles: true } } },
+    });
   }
   @Get("media/search") searchMedia(
     @Query("q") q: string,

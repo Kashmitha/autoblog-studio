@@ -122,3 +122,39 @@ test("photo selection uses relevant pool keywords and does not silently attach u
   );
   expect(choosePhoto([photo], "Ocean wildlife conservation", now)).toBeNull();
 });
+
+test("Unsplash requires explicit manually curated enrollment and cannot recycle a consumed asset", () => {
+  const curated = {
+    ...photo,
+    provider: "UNSPLASH",
+    license: "Unsplash",
+    url: "https://images.unsplash.com/photo-example",
+    metadata: {
+      providerPhotoId: "fixture",
+      licenseCheckedBy: "owner",
+      editorialPhoto: {
+        enabled: true,
+        tags: ["laptop"],
+        confirmedAt: now.toISOString(),
+        reviewKind: "OWNER_CURATED_LIBRARY",
+      },
+    },
+  };
+  expect(photoPolicy(curated, now)).toBe(true);
+  expect(
+    photoPolicy(
+      {
+        ...curated,
+        metadata: {
+          ...curated.metadata,
+          automaticPhotoUse: { articleId: "used" },
+        },
+      },
+      now,
+    ),
+  ).toBe(false);
+  expect(photoPolicy({ ...curated, rightsConfirmed: false }, now)).toBe(false);
+  expect(
+    photoPolicy({ ...curated, url: "https://example.com/photo.jpg" }, now),
+  ).toBe(false);
+});

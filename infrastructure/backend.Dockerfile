@@ -10,7 +10,7 @@ COPY scripts scripts
 RUN npm run db:generate && npm run build -w backend
 FROM build AS runtime
 ENV NODE_ENV=production
-RUN npm prune --omit=dev && mkdir -p /app/uploads && chown node:node /app/uploads
+RUN npm prune --omit=dev && chmod -R a+rX /app && mkdir -p /app/uploads && chown node:node /app/uploads
 USER node
 EXPOSE 4000
 CMD ["npm","run","start","-w","backend"]
