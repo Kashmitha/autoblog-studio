@@ -133,18 +133,18 @@ export class MediaService {
     ];
     if (
       automaticPhoto &&
-      (dto.provider === "UNSPLASH" ||
-        !tags.length ||
+      (!tags.length ||
         ![
           "CC0",
           "Public domain",
           "CC BY 4.0",
           "CC BY-SA 4.0",
           "Original work",
+          "Unsplash",
         ].includes(dto.license))
     )
       throw new BadRequestException(
-        "Automatic photos require a supported license, real-photo confirmation and subject keywords. Unsplash API imports stay manual.",
+        "Automatic library selection requires supported rights, manual import confirmation and subject keywords.",
       );
     if (dto.provider === "UNSPLASH") {
       if (!process.env.UNSPLASH_ACCESS_KEY)
@@ -186,7 +186,10 @@ export class MediaService {
                   tags,
                   confirmedAt: new Date().toISOString(),
                   confirmedBy: "owner",
-                  reviewKind: "IMPORT_REAL_PHOTO_CONFIRMATION",
+                  reviewKind:
+                    dto.provider === "UNSPLASH"
+                      ? "OWNER_CURATED_LIBRARY"
+                      : "IMPORT_REAL_PHOTO_CONFIRMATION",
                 },
               }
             : {}),

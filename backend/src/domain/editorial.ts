@@ -54,7 +54,10 @@ export type PhotoCandidate = {
 };
 export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
   const meta = photo.metadata as {
+    providerPhotoId?: string;
+    licenseCheckedBy?: string;
     editorialPhoto?: {
+      reviewKind?: string;
       enabled?: boolean;
       tags?: string[];
       confirmedAt?: string;
@@ -66,14 +69,20 @@ export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
   return (
     !consumed &&
     photo.rightsConfirmed &&
-    ["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) &&
-    [
-      "CC0",
-      "Public domain",
-      "CC BY 4.0",
-      "CC BY-SA 4.0",
-      "Original work",
-    ].includes(photo.license) &&
+    ((["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) &&
+      [
+        "CC0",
+        "Public domain",
+        "CC BY 4.0",
+        "CC BY-SA 4.0",
+        "Original work",
+      ].includes(photo.license)) ||
+      (photo.provider === "UNSPLASH" &&
+        photo.license === "Unsplash" &&
+        meta?.licenseCheckedBy === "owner" &&
+        !!meta.providerPhotoId &&
+        approved?.reviewKind === "OWNER_CURATED_LIBRARY" &&
+        photo.url.startsWith("https://images.unsplash.com/"))) &&
     photo.url.startsWith("https://") &&
     !!photo.alt &&
     approved?.enabled === true &&
@@ -169,3 +178,22 @@ export const starterBriefs = [
     "Inspect tracked snapshot file sizes and distinguish them from all historical object sizes.",
   ],
 ] as const;
+
+/** Descriptive subject hints from manually imported asset metadata; no visual-origin claim. */
+export function libraryImageTags(title: string, alt: string) {
+  const stop = new Set(
+    "a an the of in on with and or for to it my is be may seen section titled work white black background close up image photo photograph render 3d".split(
+      " ",
+    ),
+  );
+  const subject =
+    `${title} ${alt}` +
+    (/\bai\b/i.test(`${title} ${alt}`) ? " artificial intelligence" : "");
+  return [
+    ...new Set(
+      normalizeTopic(subject)
+        .split(" ")
+        .filter((t) => t.length > 2 && !stop.has(t)),
+    ),
+  ].slice(0, 15);
+}

@@ -19,7 +19,7 @@ export class CommonsPhotoService {
     const photos = await this.db.mediaAsset.findMany({
       where: {
         rightsConfirmed: true,
-        provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
+        provider: { in: ["WIKIMEDIA", "ORIGINAL", "UNSPLASH"] },
         articles: { none: previousPhotoUse(article.id) },
       },
       orderBy: { createdAt: "desc" },

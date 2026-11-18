@@ -1,6 +1,6 @@
 # Single-use photo batches
 
-Import and review real photographs through Media library, then add their subject keywords and confirm real-photo rights in Automation > Real-photo pool. Commons and original photographs are supported for unattended selection; Unsplash remains manual.
+Import and review real photographs through Media library, then add their subject keywords and confirm real-photo rights in Automation > Real-photo pool. Commons and original photographs are supported for unattended selection; Unsplash discovery/import remains manual; explicit curated-library enrollment supports downstream selection.
 
 Unused shows reviewed eligible photographs without any article attachment or automatic consumption marker. Used includes drafts, scheduled and published articles. Needs review shows unused photographs that need pool review or rights updates. Selection requires keyword relevance; it never forces an unrelated photograph.
 
@@ -16,6 +16,12 @@ This does not regenerate paid text, bypass quality or factual-review gates, back
 
 Choose One post per day, enable topic refill and standing publishing policy, then save one Sri Lanka time. This mode selects an unused reviewed library photo before an AI call, chooses a related scope from the official reference packs, includes the photo subject in the writing brief, and pins the selected photo through attachment and scheduling. Empty or unsupported subjects stop before text generation. Arbitrary image subjects outside the supported source packs do not produce invented research.
 
-During supported photo import, check real-photo automatic selection and enter subject keywords. This records the pool review as part of adding the image. Unsplash API imports remain manual under the provider guidelines; do not relabel them as original images. Local original uploads still need public HTTPS image delivery before publishing. Used/reserved filters apply to drafts and published posts; images are not recycled automatically.
+During supported photo import, check real-photo automatic selection and enter subject keywords. This records the pool review as part of adding the image. Unsplash API search and import remain manual; explicit owner-curated enrollment is required for downstream selection. Do not relabel provider assets as original images. Local original uploads still need public HTTPS image delivery before publishing. Used/reserved filters apply to drafts and published posts; images are not recycled automatically.
 
 Deployment needs an always-on backend and worker, persistent PostgreSQL/Redis and uploads, HTTPS, private environment secrets, and updated OAuth callback origins. A domain and Cloudflare account alone do not run the worker. The worker can publish a daily post when all checks succeed; it does not guarantee an uninterrupted one-post-per-day outcome in the presence of provider failures or unresolved facts.
+
+## Owner-curated imported Unsplash library
+
+The owner can explicitly enroll manually imported, rights-confirmed Unsplash assets for downstream single-use article selection via Automation > Use my manually imported Unsplash library. This does not run Unsplash search/import on a timer. Original provider IDs, images.unsplash.com hotlinks, attribution and download-event tracking at manual import are preserved. Search/import stays a human action; downstream publication is a distinct curated-library mode. This implementation does not certify provider approval of a particular use or non-AI origin.
+
+Enrollment extracts descriptive subject tags from saved title and alt text. Identified renders/logos are labelled illustrations in their attribution. Origin is not inferred from the existence of a photographer profile. Used images cannot be re-enabled by enrollment. Future imports can opt in during import. One-post mode supports AI/Claude, MySQL, SQL Server and Azure reference scopes as well as the earlier developer scopes; unsupported or ambiguous subjects are not grounds to invent factual sources.

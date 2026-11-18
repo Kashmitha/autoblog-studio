@@ -66,6 +66,52 @@ export const referenceBriefs: ReferenceBrief[] = [
       "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
     ],
   },
+  {
+    title:
+      "Write clearer Claude prompts with context, constraints and examples",
+    niche: "AI tools",
+    angle: "practical guide",
+    intent:
+      "Explain clear Claude artificial intelligence AI prompts, a defined task and success criteria. Show illustrative prompts and evaluation steps without claiming executed tests, guaranteed accuracy, free access or invented model capabilities.",
+    sources: [
+      "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
+      "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+    ],
+  },
+  {
+    title: "MySQL SELECT queries: retrieve only the columns and rows you need",
+    niche: "MySQL databases",
+    angle: "walkthrough",
+    intent:
+      "Explain a read-only SQL database MySQL SELECT query with column selection, WHERE filtering and ORDER BY. Keep examples illustrative; no destructive commands or invented benchmark results.",
+    sources: [
+      "https://dev.mysql.com/doc/refman/8.4/en/select.html",
+      "https://dev.mysql.com/doc/refman/8.4/en/selecting-all.html",
+    ],
+  },
+  {
+    title: "SQL Server SELECT and WHERE: inspect data without changing it",
+    niche: "SQL Server",
+    angle: "checklist",
+    intent:
+      "Explain read-only SQL Server database SELECT and WHERE queries, explicit columns, filtering and NULL caveats. No invented executed output or destructive data changes.",
+    sources: [
+      "https://learn.microsoft.com/en-us/sql/t-sql/queries/select-transact-sql",
+      "https://learn.microsoft.com/en-us/sql/t-sql/queries/where-transact-sql",
+    ],
+  },
+  {
+    title:
+      "Azure compute options: choose a hosting model for a small application",
+    niche: "Azure cloud",
+    angle: "decision guide",
+    intent:
+      "Compare Azure Microsoft cloud compute hosting models and application architecture tradeoffs from the official guidance. Do not invent pricing, availability guarantees or claim a depicted logo implies endorsement.",
+    sources: [
+      "https://learn.microsoft.com/en-us/azure/architecture/guide/technology-choices/compute-decision-tree",
+      "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/",
+    ],
+  },
   ...starterBriefs.map(([title, first, second, intent]) => ({
     title,
     niche: "Git & GitHub",

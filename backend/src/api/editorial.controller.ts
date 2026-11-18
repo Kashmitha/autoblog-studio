@@ -78,6 +78,9 @@ export class EditorialController {
   @Post("starter-briefs") starters() {
     return this.editorial.starters();
   }
+  @Post("enroll-library") enrollLibrary() {
+    return this.editorial.enrollLibrary();
+  }
   @Post("queue") queue() {
     return this.editorial.queue();
   }

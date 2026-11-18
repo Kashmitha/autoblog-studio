@@ -684,7 +684,7 @@ test("one daily image-led slot pins its unused library photo and prevents a seco
     include: { article: { include: { media: true } } },
   });
   expect(run.state).toBe("SCHEDULED");
-  expect(run.article?.intent).toContain("Illustrative photo subject");
+  expect(run.article?.intent).toContain("Illustrative image subject");
   expect(run.article?.media.map((m) => m.mediaId)).toEqual([image.id]);
   expect(generated).toBe(1);
 });
@@ -704,4 +704,33 @@ test("empty image-led library stops before any text-generation call", async () =
   await service.tick();
   expect(generated).toBe(0);
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
+});
+
+test("owner can enroll manually imported Unsplash images and used assets remain unavailable", async () => {
+  const image = await pool();
+  await db.mediaAsset.update({
+    where: { id: image.id },
+    data: {
+      provider: "UNSPLASH",
+      license: "Unsplash",
+      title: "MySQL icon in 3D",
+      alt: "MySQL database render",
+      url: "https://images.unsplash.com/photo-fixture",
+      metadata: { providerPhotoId: "fixture", licenseCheckedBy: "owner" },
+    },
+  });
+  expect((await service.enrollLibrary()).enrolled).toBe(1);
+  const status = await service.status();
+  const row = status.pool.find((p) => p.id === image.id)!;
+  expect(row.eligible).toBe(true);
+  expect((row.metadata.editorialPhoto as any).tags).toContain("mysql");
+  expect(
+    (await db.mediaAsset.findUniqueOrThrow({ where: { id: image.id } }))
+      .attribution,
+  ).toContain("Illustration / logo");
+  await db.mediaAsset.update({
+    where: { id: image.id },
+    data: { metadata: { automaticPhotoUse: { articleId: "consumed" } } },
+  });
+  expect((await service.enrollLibrary()).enrolled).toBe(0);
 });

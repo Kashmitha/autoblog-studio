@@ -100,8 +100,8 @@ export function MediaLibrary({ notify }: ViewProps) {
         <h2>Choose a photo for your workflow</h2>
         <p>
           For the automatic photo pool, search Wikimedia Commons or use
-          photographs you took yourself. Unsplash imports are for manual article
-          attachment.
+          photographs you took yourself. Manually imported Unsplash images can
+          also join the curated library pool.
         </p>
         <ol className="help-list">
           <li>
@@ -169,7 +169,7 @@ export function MediaLibrary({ notify }: ViewProps) {
                 ? "Checking Unsplash configuration…"
                 : unsplashUnavailable
                   ? "Unsplash Access Key is not configured. Use Wikimedia Commons without a key, or configure UNSPLASH_ACCESS_KEY privately before searching and importing."
-                  : "Unsplash is configured for manual selection. Choose Review & import from a search result to preserve its photo ID. Unsplash images do not enter the automatic photo pool."}
+                  : "Unsplash is configured for manual selection. Choose Review & import from a search result to preserve its photo ID. Enable curated library use to allow automatic selection after manual import."}
           </Notice>
         )}
         <p className="subtle small">
@@ -388,7 +388,7 @@ export function MediaLibrary({ notify }: ViewProps) {
                   ? "Unsplash import is unavailable until its Access Key configuration is confirmed. Wikimedia Commons needs no key."
                   : !form.providerPhotoId
                     ? "Close this form, search using Unsplash API, and choose Review & import. A pasted image URL does not include the required API photo ID."
-                    : "Manual-use Unsplash image: verify its source, attribution and license before importing."}
+                    : "Manually curated Unsplash image: verify its source, attribution and license before importing."}
               </Notice>
             )}
             {form.provider === "ORIGINAL" && (
@@ -547,33 +547,31 @@ export function MediaLibrary({ notify }: ViewProps) {
               I reviewed the original source, commercial reuse rights,
               attribution and any third-party restrictions.
             </label>
-            {form.provider !== "UNSPLASH" && (
-              <>
-                <label className="checkbox-label">
+            <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.automaticPhoto}
+                  onChange={(e) =>
+                    setForm({ ...form, automaticPhoto: e.target.checked })
+                  }
+                />
+                I allow automatic single-use article selection from this
+                manually imported image.
+              </label>
+              {form.automaticPhoto && (
+                <Field label="Photo subject keywords (comma-separated)">
                   <input
-                    type="checkbox"
-                    checked={form.automaticPhoto}
+                    required
+                    value={form.photoKeywordsText}
                     onChange={(e) =>
-                      setForm({ ...form, automaticPhoto: e.target.checked })
+                      setForm({ ...form, photoKeywordsText: e.target.value })
                     }
+                    placeholder="laptop, keyboard, programming"
                   />
-                  I confirm this is a real photograph (not AI-generated or a
-                  render), and allow automatic single-use article selection.
-                </label>
-                {form.automaticPhoto && (
-                  <Field label="Photo subject keywords (comma-separated)">
-                    <input
-                      required
-                      value={form.photoKeywordsText}
-                      onChange={(e) =>
-                        setForm({ ...form, photoKeywordsText: e.target.value })
-                      }
-                      placeholder="laptop, keyboard, programming"
-                    />
-                  </Field>
-                )}
-              </>
-            )}
+                </Field>
+              )}
+            </>
             <Notice>
               License metadata is evidence for your review, not a legal
               guarantee. Reject unclear or noncommercial-only images.

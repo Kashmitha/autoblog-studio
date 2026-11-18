@@ -18,6 +18,7 @@ import {
   EDITORIAL_PUBLISH,
   PHOTO_CONFIRMATION,
   choosePhoto,
+  libraryImageTags,
 } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
@@ -69,7 +70,7 @@ export class EditorialService {
         this.db.mediaAsset.findMany({
           where: {
             rightsConfirmed: true,
-            provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
+            provider: { in: ["WIKIMEDIA", "ORIGINAL", "UNSPLASH"] },
           },
           include: { articles: { select: { articleId: true } } },
           orderBy: { createdAt: "desc" },
@@ -168,7 +169,7 @@ export class EditorialService {
       );
     if (!eligiblePhotos.length && !commonsAutoEnabled())
       publishingBlockers.push(
-        "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash stays manual.",
+        "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash search/import remain manual; enroll the curated library to use saved assets.",
       );
     if ((c.automation?.dailyLimit || 0) < c.settings.times.length)
       publishingBlockers.push(
@@ -340,6 +341,65 @@ export class EditorialService {
     });
     return { created };
   }
+  async enrollLibrary() {
+    return this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
+      const images = await tx.mediaAsset.findMany({
+        where: { provider: "UNSPLASH", rightsConfirmed: true },
+        include: { articles: { select: { articleId: true } } },
+      });
+      let enrolled = 0;
+      for (const image of images) {
+        const meta = image.metadata as Prisma.JsonObject;
+        if (
+          image.articles.length ||
+          meta.automaticPhotoUse ||
+          !meta.providerPhotoId ||
+          meta.licenseCheckedBy !== "owner" ||
+          image.license !== "Unsplash" ||
+          !image.url.startsWith("https://images.unsplash.com/") ||
+          !image.alt
+        )
+          continue;
+        const tags = libraryImageTags(image.title, image.alt);
+        if (!tags.length) continue;
+        const illustration = /3d|render|illustration|logo/i.test(
+          `${image.title} ${image.alt}`,
+        );
+        await tx.mediaAsset.update({
+          where: { id: image.id },
+          data: {
+            metadata: {
+              ...meta,
+              editorialPhoto: {
+                enabled: true,
+                tags,
+                confirmedAt: new Date().toISOString(),
+                confirmedBy: "owner",
+                reviewKind: "OWNER_CURATED_LIBRARY",
+                imageKind: illustration
+                  ? "ILLUSTRATION_OR_LOGO"
+                  : "IMPORTED_IMAGE_UNVERIFIED_ORIGIN",
+              },
+            },
+            attribution:
+              illustration && !image.attribution.includes("Illustration / logo")
+                ? `${image.attribution} - Illustration / logo; not a photograph of the tutorial.`
+                : image.attribution,
+          },
+        });
+        enrolled++;
+      }
+      await tx.auditLog.create({
+        data: {
+          action: "OWNER_CURATED_LIBRARY_ENABLED",
+          entityId: "owner",
+          message: `Owner authorized ${enrolled} manually imported library images for downstream article selection. No automated Unsplash discovery or import. Metadata does not certify non-AI origin.`,
+        },
+      });
+      return { enrolled };
+    });
+  }
   async photo(
     id: string,
     enabled: boolean,
@@ -352,20 +412,21 @@ export class EditorialService {
       enabled &&
       (confirmation !== PHOTO_CONFIRMATION ||
         !photo.rightsConfirmed ||
-        !["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) ||
+        !["WIKIMEDIA", "ORIGINAL", "UNSPLASH"].includes(photo.provider) ||
         ![
           "CC0",
           "Public domain",
           "CC BY 4.0",
           "CC BY-SA 4.0",
           "Original work",
+          "Unsplash",
         ].includes(photo.license) ||
         !photo.alt ||
         !photo.url.startsWith("https://") ||
         !tags.length)
     )
       throw new BadRequestException(
-        "Confirm a real photograph, commercial reuse rights, public HTTPS delivery and relevant keywords. Unsplash images cannot enter unattended selection.",
+        "Confirm a real photograph, commercial reuse rights, public HTTPS delivery and relevant keywords. Manually imported Unsplash assets require curated-library enrollment.",
       );
     await this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
@@ -382,6 +443,9 @@ export class EditorialService {
               tags,
               confirmedAt: new Date().toISOString(),
               confirmedBy: "owner",
+              ...(photo.provider === "UNSPLASH"
+                ? { reviewKind: "OWNER_CURATED_LIBRARY" }
+                : {}),
             },
           },
         },
@@ -672,7 +736,7 @@ export class EditorialService {
               slug: `editorial-topic-${run.id}`,
               niche: pack.niche,
               status: "PLANNED",
-              intent: `${imagePlan?.photo ? `Illustrative photo subject: ${imagePlan.photo.title}. ${imagePlan.photo.alt}. Choose an article relevant to this photograph; never claim the photo documents executed tests or a product screenshot. ` : ""}Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
+              intent: `${imagePlan?.photo ? `Illustrative image subject: ${imagePlan.photo.title}. ${imagePlan.photo.alt}. Choose an article relevant to this image. It may be a render, illustration or logo; never call it a real photograph or claim it documents executed tests or a product screenshot. ` : ""}Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
               planningNotes:
                 "Automatically planned from owner-enabled primary-reference packs across developer topics. This is not a claim of human fact checking or search demand.",
               sources: {

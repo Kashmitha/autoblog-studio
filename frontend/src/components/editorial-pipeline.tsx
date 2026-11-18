@@ -248,7 +248,7 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               </p>
             </div>
             <div>
-              <h3>2. Real-photo pool (optional with Commons discovery)</h3>
+              <h3>2. Curated image pool</h3>
               <p className="small subtle">
                 You do not need to select a photo here for each post. This
                 section adds manually reviewed photos to the single-use pool;
@@ -265,11 +265,11 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                 after seven days.
               </p>
               <p className="small subtle">
-                Unsplash's current API guidelines specify non-automated use, so
-                its picker remains manual. Automatic Commons discovery can
-                supplement this pool when enabled. Its metadata checks do not
-                certify licensing or photo origin; uncertain candidates still
-                need review.
+                Unsplash search and import remain manual. Owner-curated library
+                images can be used for downstream article selection. Automatic
+                Commons discovery can supplement this pool when enabled. Its
+                metadata checks do not certify licensing or photo origin;
+                uncertain candidates still need review.
               </p>
               <div
                 className="inline wrap"
@@ -319,6 +319,23 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                 Automatic attachments stay used even if later detached. At two
                 posts per day, 20 suitable unused photos cover up to 10 days.
               </p>
+              <button
+                className="secondary"
+                onClick={() =>
+                  void a.run(async () => {
+                    const result = await post<{ enrolled: number }>(
+                      "/editorial/enroll-library",
+                      {},
+                    );
+                    notify(
+                      `${result.enrolled} manually imported library images enrolled.`,
+                    );
+                    await r.reload();
+                  })
+                }
+              >
+                Use my manually imported Unsplash library
+              </button>
               <Field label="Reviewed photograph">
                 <select
                   value={photoId}
