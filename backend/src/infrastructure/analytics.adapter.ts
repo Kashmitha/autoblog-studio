@@ -5,6 +5,49 @@ import { GoogleService } from "./blogger.service";
 @Injectable()
 export class AnalyticsAdapter {
   constructor(private readonly google: GoogleService) {}
+  async audience(
+    propertyId: string,
+    host: string,
+    start: string,
+    end: string,
+    dimension:
+      "country" | "sessionSourceMedium" | "sessionCampaignName" | "pagePath",
+  ) {
+    const api = analyticsdata({
+      version: "v1beta",
+      auth: await this.google.client(),
+    });
+    return (
+      await api.properties.runReport(
+        {
+          property: `properties/${propertyId}`,
+          requestBody: {
+            dateRanges: [{ startDate: start, endDate: end }],
+            dimensions: [{ name: dimension }],
+            metrics: [
+              { name: "sessions" },
+              { name: "engagedSessions" },
+              { name: "engagementRate" },
+              { name: "screenPageViews" },
+            ],
+            dimensionFilter: {
+              filter: {
+                fieldName: "hostName",
+                stringFilter: {
+                  matchType: "EXACT",
+                  value: host,
+                  caseSensitive: false,
+                },
+              },
+            },
+            orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+            limit: "20",
+          },
+        },
+        { timeout: 20000, retry: false },
+      )
+    ).data;
+  }
   async report(
     propertyId: string,
     host: string,

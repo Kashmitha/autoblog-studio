@@ -5,6 +5,24 @@ import { GoogleService } from "./blogger.service";
 @Injectable()
 export class SearchConsoleAdapter {
   constructor(private readonly google: GoogleService) {}
+  async queries(siteUrl: string, start: string, end: string) {
+    const api = webmasters({ version: "v3", auth: await this.google.client() });
+    return (
+      await api.searchanalytics.query(
+        {
+          siteUrl,
+          requestBody: {
+            startDate: start,
+            endDate: end,
+            dimensions: ["query", "page"],
+            rowLimit: 250,
+            dataState: "final",
+          },
+        },
+        { timeout: 20000, retry: false },
+      )
+    ).data;
+  }
   async properties() {
     const api = webmasters({ version: "v3", auth: await this.google.client() });
     return (

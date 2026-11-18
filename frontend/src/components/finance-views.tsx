@@ -1,6 +1,7 @@
 "use client";
 import { IndexingOverview } from "./indexing";
 import { ArticlePerformance } from "./performance";
+import { GrowthTools } from "./growth";
 import { TrafficSync } from "./traffic-sync";
 import { AdsterraReport } from "./adsterra-report";
 import { useState } from "react";
@@ -58,11 +59,7 @@ export function Finance({
     <>
       <PageHeading
         eyebrow={expenses ? "KNOW YOUR COSTS" : "MEASURE WHAT MATTERS"}
-        title={
-          expenses
-            ? "Make the numbers make sense."
-            : "Monetization"
-        }
+        title={expenses ? "Make the numbers make sense." : "Monetization"}
         description={
           expenses
             ? "Track operating costs and compare them against actual revenue."
@@ -452,6 +449,7 @@ export function Traffic({ notify, integrations }: ViewProps) {
         description="Connect authorized reporting or import your real traffic records."
       />
       <IndexingOverview notify={notify} />
+      <GrowthTools notify={notify} />
       <ArticlePerformance />
       <TrafficSync notify={notify} />
       <ResourceState {...r} />

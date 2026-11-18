@@ -6180,3 +6180,19 @@ tbody tr:hover {
 }
 
 }
+
+/* Audience growth tools use the existing theme surfaces and text colors. */
+.growth-tools select,.growth-tools input,.growth-tools textarea{max-width:100%;min-width:0}
+.growth-tools .panel-heading>label{min-width:0;flex:1}
+.growth-channel-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:24px 0}
+.growth-report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:24px 0}
+.growth-channel{min-width:0;padding:18px;border:1px solid var(--border,#64748b55);border-radius:16px}
+.growth-channel h3{font-size:20px;margin-bottom:16px}
+.growth-channel textarea{width:100%;resize:vertical;line-height:1.65}
+.growth-channel .inline{gap:10px}
+.growth-tools td{vertical-align:top}
+.growth-tools .break-url{overflow-wrap:anywhere}
+@media(max-width:1100px){.growth-channel-grid,.growth-report-grid{grid-template-columns:minmax(0,1fr)}}
+
+.growth-channel table{min-width:600px;table-layout:auto}
+.growth-channel th:first-child,.growth-channel td:first-child{min-width:140px;overflow-wrap:normal}
