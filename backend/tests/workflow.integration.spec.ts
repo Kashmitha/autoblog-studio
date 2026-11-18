@@ -1360,3 +1360,63 @@ test("handoff status sync observes owner-managed schedules and publication witho
     expect(f.create).toHaveBeenCalledTimes(1);
     expect(f.schedule).not.toHaveBeenCalled();
   }));
+
+test("automatic Blogger handoff accepts its own consumed photo but rejects another article's reservation", async () =>
+  withCloud(async (f) => {
+    const media = await db.mediaAsset.create({
+      data: {
+        title: "Reviewed laptop photograph",
+        alt: "Laptop on a desk",
+        creator: "Fixture photographer",
+        url: "https://example.com/photo.jpg",
+        sourceUrl: "https://example.com/source",
+        provider: "ORIGINAL",
+        license: "Original work",
+        licenseUrl: "https://example.com/license",
+        attribution: "Fixture photographer",
+        rightsConfirmed: true,
+        metadata: {
+          editorialPhoto: {
+            enabled: true,
+            tags: ["laptop"],
+            confirmedAt: new Date().toISOString(),
+          },
+          automaticPhotoUse: { articleId: "different-article" },
+        },
+      },
+    });
+    try {
+      await db.articleMedia.create({
+        data: { articleId: f.id, mediaId: media.id },
+      });
+      await db.automationSettings.update({
+        where: { id: "owner" },
+        data: { paused: false },
+      });
+      await expect(
+        f.cloud.schedule(f.id, f.at, {
+          automatic: true,
+          expectedBlogId: "cloud-blog",
+          expectedPhotoId: media.id,
+        }),
+      ).rejects.toThrow("photo pool approval changed");
+      expect(f.create).not.toHaveBeenCalled();
+      const metadata = media.metadata as Record<string, unknown>;
+      await db.mediaAsset.update({
+        where: { id: media.id },
+        data: {
+          metadata: { ...metadata, automaticPhotoUse: { articleId: f.id } },
+        },
+      });
+      const result = await f.cloud.schedule(f.id, f.at, {
+        automatic: true,
+        expectedBlogId: "cloud-blog",
+        expectedPhotoId: media.id,
+      });
+      expect(result.remoteStatus).toBe("SCHEDULED");
+      expect(f.create).toHaveBeenCalledTimes(1);
+    } finally {
+      await db.articleMedia.deleteMany({ where: { mediaId: media.id } });
+      await db.mediaAsset.delete({ where: { id: media.id } });
+    }
+  }));

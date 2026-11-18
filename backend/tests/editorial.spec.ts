@@ -158,3 +158,20 @@ test("Unsplash requires explicit manually curated enrollment and cannot recycle 
     photoPolicy({ ...curated, url: "https://example.com/photo.jpg" }, now),
   ).toBe(false);
 });
+
+test("an attached photo remains valid only for its owning article and never returns to selection", () => {
+  const attached = {
+    ...photo,
+    metadata: {
+      ...(photo.metadata as Record<string, unknown>),
+      automaticPhotoUse: { articleId: "owner-article" },
+    },
+  };
+  expect(photoPolicy(attached, now)).toBe(false);
+  expect(choosePhoto([attached], "laptop programming", now)).toBeNull();
+  expect(photoPolicy(attached, now, "owner-article")).toBe(true);
+  expect(photoPolicy(attached, now, "another-article")).toBe(false);
+  expect(
+    photoPolicy({ ...attached, rightsConfirmed: false }, now, "owner-article"),
+  ).toBe(false);
+});
