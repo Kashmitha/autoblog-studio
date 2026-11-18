@@ -7,7 +7,7 @@ import { ArticlesService } from "./articles.service";
 import { publicGet } from "../infrastructure/public-http";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
-import { referenceExcerpt } from "../domain/research";
+import { referenceExcerpt, withResearchReferences } from "../domain/research";
 import { aiConfiguration } from "../domain/ai-config";
 @Injectable()
 export class AiService {
@@ -192,7 +192,10 @@ export class AiService {
             publishingTarget: "local",
           },
           data: {
-            html: safeHtml(data.html),
+            html: withResearchReferences(
+              safeHtml(data.html),
+              research.map((source) => source.url),
+            ),
             excerpt: data.excerpt.slice(0, 500),
             labels: (data.labels as string[]).slice(0, 12),
             aiAssisted: true,

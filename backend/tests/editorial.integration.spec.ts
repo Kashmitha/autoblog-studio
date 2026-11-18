@@ -521,11 +521,14 @@ test.each(["openai", "groq"])(
 );
 test("uncertainty and uncertain Blogger results never auto-regenerate or replay", async () => {
   await pool();
+  await pool(1);
   await enable(true);
   uncertain = true;
   await service.queue();
   await service.tick();
   expect((await db.editorialRun.findFirstOrThrow()).state).toBe("NEEDS_REVIEW");
+  expect((await db.editorialRun.findFirstOrThrow()).stage).toBe("READY");
+  expect(await db.articleMedia.count()).toBe(1);
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
   uncertain = false;
   cloudFails = true;

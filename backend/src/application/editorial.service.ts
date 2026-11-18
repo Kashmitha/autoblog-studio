@@ -12,7 +12,6 @@ import { MediaService } from "./media.service";
 import { CloudPublishingService } from "./cloud-publishing.service";
 import {
   acceptableTitle,
-  choosePhoto,
   editorialSlots,
   photoPolicy,
   EDITORIAL_ENABLE,
@@ -612,60 +611,18 @@ export class EditorialService {
         uncertainties?: unknown;
         imageSearchTerms?: unknown;
       };
-      if (
-        !Array.isArray(generation.uncertainties) ||
-        generation.uncertainties.length
-      ) {
-        await this.db.editorialRun.update({
-          where: { id: run.id },
-          data: {
-            state: "NEEDS_REVIEW",
-            finishedAt: new Date(),
-            message:
-              "The model flagged uncertainty or unverified examples. Owner review is required; no automatic approval.",
-          },
-        });
-        return;
-      }
       const searchTerms = Array.isArray(generation.imageSearchTerms)
         ? generation.imageSearchTerms
             .filter((term): term is string => typeof term === "string")
             .slice(0, 5)
         : [];
       const terms = searchTerms.join(" ");
-      const photos = await this.db.mediaAsset.findMany({
-        where: {
-          rightsConfirmed: true,
-          provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
-          articles: {
-            none: {
-              article: {
-                id: { not: a.id },
-                OR: [
-                  {
-                    editorialRuns: {
-                      some: {
-                        createdAt: { gte: new Date(Date.now() - 7 * 86400000) },
-                      },
-                    },
-                  },
-                  { publishedAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-                  { scheduledAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-                ],
-              },
-            },
-          },
-        },
-        take: 200,
-      });
-      let photo = choosePhoto(photos, `${a.title} ${a.intent} ${terms}`);
-      if (!photo && commonsAutoEnabled()) {
-        await this.active(run);
-        try {
-          photo = await this.commons.discover(searchTerms, a.id);
-        } catch {
-          /* Discovery failure retains the text draft for review. */
-        }
+      let photo = null;
+      await this.active(run);
+      try {
+        photo = (await this.commons.select(a, searchTerms))?.photo || null;
+      } catch {
+        /* Preserve the generated draft if image discovery is unavailable. */
       }
       if (!photo) {
         let candidates: Prisma.InputJsonValue = [];
@@ -694,7 +651,7 @@ export class EditorialService {
         return;
       }
       await this.active(run);
-      await this.articles.attach(a.id, photo.id);
+      await this.articles.attachAutomaticPhoto(a.id, photo.id, a.version);
       a = await this.articles.get(a.id);
       const report = await this.articles.quality(a.id);
       if (
@@ -713,6 +670,23 @@ export class EditorialService {
         throw new BadRequestException(
           "Quality or originality checks need owner attention. No automated approval.",
         );
+      if (
+        !Array.isArray(generation.uncertainties) ||
+        generation.uncertainties.length
+      ) {
+        await this.db.editorialRun.update({
+          where: { id: run.id },
+          data: {
+            state: "NEEDS_REVIEW",
+            stage: "READY",
+            articleVersion: a.version,
+            finishedAt: new Date(),
+            message:
+              "Photo and attribution are attached. The model flagged unresolved claims or unverified examples; review is required before approval or scheduling.",
+          },
+        });
+        return;
+      }
       policy = await this.active(run);
       if (!policy.autoPublish) {
         await this.db.editorialRun.update({

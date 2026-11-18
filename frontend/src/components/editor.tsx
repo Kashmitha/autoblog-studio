@@ -24,6 +24,7 @@ import { ResourceState, niches, ViewProps } from "./views";
 import { ArticleIndexing } from "./indexing";
 import { InternalLinks } from "./internal-links";
 import { ArticlePhotoPicker } from "./article-photo-picker";
+import { PrepareArticlePhoto } from "./photo-automation";
 export default function Editor({
   id,
   notify,
@@ -795,6 +796,20 @@ export default function Editor({
               </section>
               <section className="panel padded spaced">
                 <h2>Article images</h2>
+                {!locked &&
+                  article.status !== "APPROVED" &&
+                  !article.media?.length && (
+                    <PrepareArticlePhoto
+                      id={id}
+                      version={article.version}
+                      disabled={a.busy || dirty || !article.html.trim()}
+                      notify={notify}
+                      onPrepared={async () => {
+                        await r.reload();
+                        await library.reload();
+                      }}
+                    />
+                  )}
                 {article.media?.map(({ media: m }) => (
                   <div className="attached-media" key={m.id}>
                     <img src={m.url} alt={m.alt} />

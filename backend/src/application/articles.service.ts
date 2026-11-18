@@ -11,6 +11,8 @@ import { ArticleDto, SourceDto } from "../api/dtos";
 import { safeHtml, checkQuality } from "../domain/quality";
 import { assertTransition } from "../domain/workflow";
 import { publicGet } from "../infrastructure/public-http";
+import { photoPolicy } from "../domain/editorial";
+import { recentPhotoUse } from "../domain/photo-preparation";
 export const articleInclude = {
   sources: true,
   media: { include: { media: true } },
@@ -278,6 +280,70 @@ export class ArticlesService {
         update: {},
       }),
     );
+    return this.get(id);
+  }
+  async attachAutomaticPhoto(
+    id: string,
+    mediaId: string,
+    expectedVersion: number,
+  ) {
+    await this.db.$transaction(async (tx) => {
+      // Serialize photo claims across drafts, workers and concurrent browser requests.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
+      const article = await tx.article.findUniqueOrThrow({ where: { id } });
+      if (
+        article.version !== expectedVersion ||
+        article.publishingTarget !== "local" ||
+        !["PLANNED", "RESEARCHING", "NEEDS_REVIEW"].includes(article.status)
+      )
+        throw new ConflictException(
+          "Draft changed or is no longer editable. Refresh before preparing its image.",
+        );
+      if (await tx.articleMedia.count({ where: { articleId: id } }))
+        throw new ConflictException(
+          "An image was already attached. Existing images are never replaced automatically.",
+        );
+      const photo = await tx.mediaAsset.findUniqueOrThrow({
+        where: { id: mediaId },
+      });
+      if (
+        !photoPolicy(photo) ||
+        (await tx.articleMedia.count({
+          where: { mediaId, ...recentPhotoUse(id) },
+        }))
+      )
+        throw new ConflictException(
+          "Photo eligibility or recent use changed. Refresh and try another image.",
+        );
+      const changed = await tx.article.updateMany({
+        where: {
+          id,
+          version: expectedVersion,
+          publishingTarget: "local",
+          status: article.status,
+        },
+        data: {
+          version: { increment: 1 },
+          status: "NEEDS_REVIEW",
+          approvedAt: null,
+        },
+      });
+      if (!changed.count)
+        throw new ConflictException("Draft changed while preparing its image.");
+      await tx.articleMedia.create({ data: { articleId: id, mediaId } });
+      await tx.auditLog.create({
+        data: {
+          action: "ARTICLE_PHOTO_AUTOMATICALLY_ATTACHED",
+          entityId: id,
+          message: JSON.stringify({
+            version: expectedVersion + 1,
+            mediaId,
+            sourceUrl: photo.sourceUrl,
+            license: photo.license,
+          }),
+        },
+      });
+    });
     return this.get(id);
   }
   async detach(id: string, mediaId: string) {

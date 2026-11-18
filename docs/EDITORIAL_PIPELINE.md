@@ -35,6 +35,10 @@ Image imports belong to Media library until explicitly attached to an article. T
 
 ## What happens automatically
 
+With Commons discovery enabled, the **Real-photo pool is optional**. Its selector is for adding manually reviewed library photos, not a required per-post selection. After saving an enabled automatic-publishing policy, the worker handles generation, image attachment, checks, approval under that policy and Blogger scheduling without routine owner clicks. **Prepare next future slot** is a manual early-preparation/testing action, not a button that must be clicked twice every day.
+
+Generated articles retain links to research URLs actually fetched and supplied to the provider, even when the returned text omits anchors. These references do not certify the generated claims. Provider instructions distinguish documented platform/prompt caveats (which belong in the article) from genuinely unresolved claims or unverified asserted results. Unresolved claims still prevent automatic approval. Photo preparation and quality checking now run before that decision so a review-held draft can already have its real photograph and credit attached. Run history also shows the current article status when an earlier stopped attempt has since been handled separately.
+
 The worker looks for today's slots 5–30 minutes ahead and skips missed slots. A manual queue can prepare a later slot today or tomorrow. There are at most two attempted runs created per Sri Lanka day, not a promise of two successful posts. It does not burst through missed days.
 
 Each run claims an empty brief and uses the existing metered text provider. Titles are checked against other Studio titles for duplicate or highly similar wording. Model uncertainty, source failures, insufficient text, quality warnings, duplicate topics or missing photos stop automatic publication. Command correctness still needs appropriate editorial verification; a reachable source is not proof that every generated claim is correct.

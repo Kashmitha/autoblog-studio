@@ -245,7 +245,12 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
               </p>
             </div>
             <div>
-              <h3>2. Real-photo pool</h3>
+              <h3>2. Real-photo pool (optional with Commons discovery)</h3>
+              <p className="small subtle">
+                You do not need to select a photo here for each post. This
+                section adds manually reviewed photos to the reusable pool; the
+                enabled workflow selects images automatically.
+              </p>
               <p className="small subtle">
                 You can search and import a licensed photograph in{" "}
                 <Link href="/media" className="text-link">
@@ -527,6 +532,18 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
                           </Link>
                         )}
                         <p className="small">{run.message}</p>
+                        {run.article &&
+                          ["SCHEDULED", "PUBLISHED"].includes(
+                            run.article.status,
+                          ) &&
+                          run.state !== "SCHEDULED" && (
+                            <p className="small">
+                              Current article status:{" "}
+                              <Badge value={run.article.status} />. This run
+                              records the earlier stopped attempt; the article
+                              was handled separately afterward.
+                            </p>
+                          )}
                         {run.state === "BLOCKED_MEDIA" && (
                           <>
                             <p className="small subtle">

@@ -47,6 +47,7 @@ import { useAction, useResource } from "./hooks";
 import { IndexingOverview } from "./indexing";
 import { WeeklyReview } from "./weekly-review";
 import { EditorialPipeline } from "./editorial-pipeline";
+import { PhotoAutomationQueue } from "./photo-automation";
 import { ContentBacklog } from "./content-backlog";
 import { FoundryHero, DeskNavigation } from "./foundry";
 export { Connections } from "./connections";
@@ -1215,6 +1216,7 @@ export function Automation({ notify }: ViewProps) {
       />
       <ResourceState {...r} />
       <EditorialPipeline notify={notify} />
+      <PhotoAutomationQueue notify={notify} />
       {s && (
         <>
           <Notice>
