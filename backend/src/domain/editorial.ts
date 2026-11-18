@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import { similarity, normalizeTopic } from "./workflow";
 
+export const AUTOMATIC_MIN_WORDS = 450;
 export const EDITORIAL_ENABLE = "ENABLE PAID EDITORIAL DRAFTS";
 export const EDITORIAL_PUBLISH = "AUTHORIZE AUTOMATIC EDITORIAL PUBLISHING";
 export const PHOTO_CONFIRMATION = "CONFIRM REAL PHOTO RIGHTS";

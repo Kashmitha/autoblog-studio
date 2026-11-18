@@ -5,6 +5,7 @@ import { PrismaService } from "../infrastructure/prisma.service";
 import { AiProvider } from "../infrastructure/ai.provider";
 import { ArticlesService } from "./articles.service";
 import { publicGet } from "../infrastructure/public-http";
+import { AUTOMATIC_MIN_WORDS } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
 import { referenceExcerpt, withResearchReferences } from "../domain/research";
@@ -63,7 +64,11 @@ export class AiService {
         "API key and selected model are accessible. No text was generated. This does not verify billing plan, completion quota or Blogger access.",
     };
   }
-  async generate(dto: GenerateDto, expectedVersion?: number) {
+  async generate(
+    dto: GenerateDto,
+    expectedVersion?: number,
+    repairFeedback?: string,
+  ) {
     const config = aiConfiguration();
     if (!config.ready) throw new BadRequestException(config.blockers.join(" "));
     const {
@@ -126,9 +131,10 @@ export class AiService {
           ? "Propose five specific nonduplicative tutorials. Do not claim verified search demand; leave draft fields empty."
           : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Identify unverified code or claims in uncertainties. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
       research,
+      repairFeedback: repairFeedback?.slice(0, 1000),
       draftLength:
         dto.task === "draft"
-          ? "Aim for 450–900 useful words with specific supported steps, caveats and examples. Do not pad a short answer; flag insufficient reference support in uncertainties."
+          ? `Write 550-800 useful words, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Verify container lifecycle wording: stopping a container does not remove its writable layer. Avoid unsupported host storage paths or third-party recommendations.`
           : undefined,
     });
     if (Buffer.byteLength(prompt) > 32000)

@@ -12,6 +12,7 @@ import { MediaService } from "./media.service";
 import { CloudPublishingService } from "./cloud-publishing.service";
 import {
   acceptableTitle,
+  AUTOMATIC_MIN_WORDS,
   editorialSlots,
   photoPolicy,
   EDITORIAL_ENABLE,
@@ -19,10 +20,11 @@ import {
   PHOTO_CONFIRMATION,
   choosePhoto,
   libraryImageTags,
+  type PhotoCandidate,
 } from "../domain/editorial";
+import sanitizeHtml from "sanitize-html";
 import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
-import sanitizeHtml from "sanitize-html";
 import { aiConfiguration } from "../domain/ai-config";
 import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
 import { CommonsPhotoService } from "./commons-photo.service";
@@ -519,6 +521,85 @@ export class EditorialService {
       );
     return { ok: true };
   }
+  async resumePrepared(id: string, version: number) {
+    const run = await this.db.editorialRun.findUniqueOrThrow({ where: { id } });
+    const policy = await this.active(run);
+    const article = run.articleId
+      ? await this.articles.get(run.articleId)
+      : null;
+    if (
+      !policy.autoPublish ||
+      run.state !== "NEEDS_REVIEW" ||
+      !["PHOTO", "CHECKS", "READY"].includes(run.stage) ||
+      !article ||
+      article.version !== version ||
+      article.status !== "NEEDS_REVIEW" ||
+      article.publishingTarget !== "local" ||
+      article.remotePostId ||
+      article.media.length !== 1
+    )
+      throw new ConflictException(
+        "Only an unchanged, corrected local draft with one attached image can resume under the original automatic policy.",
+      );
+    const uncertainties = (
+      article.generation as { uncertainties?: unknown } | null
+    )?.uncertainties;
+    if (!Array.isArray(uncertainties) || uncertainties.length)
+      throw new ConflictException(
+        "Resolve and record the remaining factual uncertainties before resuming.",
+      );
+    const report = await this.articles.quality(article.id);
+    if (
+      !report.passed ||
+      (report.issues as unknown as { code: string }[]).some(
+        (i) => i.code !== "EDITORIAL_REVIEW",
+      )
+    )
+      throw new ConflictException(
+        "Resolve the saved quality issues before resuming.",
+      );
+    const slot =
+      run.slotAt.getTime() >= Date.now() + 10 * 60000
+        ? { key: run.slotKey, at: run.slotAt }
+        : editorialSlots(policy.times, new Date(), true)[0];
+    if (!slot)
+      throw new ConflictException("No future publication slot is available.");
+    await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172260)`;
+      const current = await tx.article.findUniqueOrThrow({
+        where: { id: article.id },
+      });
+      if (
+        current.version !== version ||
+        current.status !== "NEEDS_REVIEW" ||
+        current.publishingTarget !== "local"
+      )
+        throw new ConflictException("Draft changed while resuming.");
+      const changed = await tx.editorialRun.updateMany({
+        where: { id, state: "NEEDS_REVIEW", policyRevision: policy.revision },
+        data: {
+          state: "QUEUED",
+          stage: "READY",
+          articleVersion: version,
+          slotKey: slot.key,
+          slotAt: slot.at,
+          finishedAt: null,
+          message:
+            "Corrected saved draft queued for policy checks and a future Blogger schedule; no text regeneration.",
+        },
+      });
+      if (!changed.count)
+        throw new ConflictException("Run changed while resuming.");
+      await tx.auditLog.create({
+        data: {
+          action: "EDITORIAL_CORRECTED_DRAFT_RESUMED",
+          entityId: id,
+          message: `Saved version ${version}; original slot ${run.slotAt.toISOString()}; new slot ${slot.at.toISOString()}. No claim of human review.`,
+        },
+      });
+    });
+    return { queued: true, slotAt: slot.at };
+  }
   private async active(run: EditorialRun) {
     const [policy, settings, google] = await Promise.all([
       this.db.editorialSettings.findUnique({ where: { id: "owner" } }),
@@ -781,11 +862,34 @@ export class EditorialService {
           return saved;
         });
         await this.active(run);
-        const generated = await this.ai.generate(
+        let generated = await this.ai.generate(
           { task: "draft", articleId: a.id, niche: a.niche },
           a.version,
         );
         a = await this.articles.get(a.id);
+        const words = sanitizeHtml(a.html, {
+          allowedTags: [],
+          allowedAttributes: {},
+        })
+          .split(/\s+/)
+          .filter(Boolean).length;
+        if (policy.autoPublish && words < AUTOMATIC_MIN_WORDS) {
+          await this.active(run);
+          await this.db.editorialRun.update({
+            where: { id: run.id },
+            data: {
+              stage: "TEXT_REPAIR",
+              articleVersion: a.version,
+              message: `Draft has ${words} words; attempting one source-backed expansion within the existing daily provider limits.`,
+            },
+          });
+          generated = await this.ai.generate(
+            { task: "draft", articleId: a.id, niche: a.niche },
+            a.version,
+            `The prior draft contained ${words} words and failed the ${AUTOMATIC_MIN_WORDS}-word minimum. Write a complete 550-800 word article grounded in the supplied references, with prerequisites, supported examples, limitations and restoration checks when relevant. Do not pad, invent results, or hide unresolved claims. This is the only automatic length-repair attempt.`,
+          );
+          a = await this.articles.get(a.id);
+        }
         const titles = (
           await this.db.article.findMany({
             where: { id: { not: a.id } },
@@ -824,7 +928,7 @@ export class EditorialService {
             .slice(0, 5)
         : [];
       const terms = searchTerms.join(" ");
-      let photo = null;
+      let photo: PhotoCandidate | null = a.media[0]?.media || null;
       await this.active(run);
       try {
         const pinned = Array.isArray(run.candidates)
@@ -837,6 +941,7 @@ export class EditorialService {
             )
           : null;
         if (
+          !photo &&
           pinned &&
           typeof pinned === "object" &&
           !Array.isArray(pinned) &&
@@ -846,7 +951,7 @@ export class EditorialService {
             where: { id: pinned.mediaId },
           });
           photo = planned && photoPolicy(planned) ? planned : null;
-        } else
+        } else if (!photo)
           photo = (await this.commons.select(a, searchTerms))?.photo || null;
       } catch {
         /* Preserve the generated draft if image discovery is unavailable. */
@@ -888,24 +993,26 @@ export class EditorialService {
         return;
       }
       await this.active(run);
-      await this.articles.attachAutomaticPhoto(a.id, photo.id, a.version);
+      if (!a.media.length)
+        await this.articles.attachAutomaticPhoto(a.id, photo.id, a.version);
       a = await this.articles.get(a.id);
+      await this.db.editorialRun.update({
+        where: { id: run.id },
+        data: { stage: "CHECKS", articleVersion: a.version },
+      });
       const report = await this.articles.quality(a.id);
-      if (
-        sanitizeHtml(a.html, { allowedTags: [], allowedAttributes: {} })
-          .split(/\s+/)
-          .filter(Boolean).length < 450
-      )
-        throw new BadRequestException(
-          "Automatic drafts must provide at least 450 useful words; review the incomplete draft.",
-        );
       const issues = report.issues as unknown as { code: string }[];
       if (
         !report.passed ||
         issues.some((issue) => issue.code !== "EDITORIAL_REVIEW")
       )
         throw new BadRequestException(
-          "Quality or originality checks need owner attention. No automated approval.",
+          `Quality checks stopped this run: ${(
+            report.issues as unknown as { code: string; message: string }[]
+          )
+            .filter((i) => i.code !== "EDITORIAL_REVIEW")
+            .map((i) => i.message)
+            .join(" ")}`,
         );
       if (
         !Array.isArray(generation.uncertainties) ||
@@ -1028,7 +1135,12 @@ export class EditorialService {
           message: `Blogger confirmed its schedule at ${scheduled.scheduledAt?.toISOString()}. Computer can be off after acceptance.`,
         },
       });
-    } catch {
+    } catch (error) {
+      const detail =
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+          ? error.message.slice(0, 500)
+          : "Check the saved draft, sources and provider usage.";
       const current = await this.db.editorialRun.findUnique({
         where: { id: run.id },
       });
@@ -1041,7 +1153,7 @@ export class EditorialService {
           message:
             current?.stage === "BLOGGER"
               ? "Inspect Blogger and saved remote intent before any retry. This request will not be replayed automatically."
-              : "Preparation stopped. Check the saved article, quality report, policy, sources and provider usage. No automatic regeneration or publication retry.",
+              : `Preparation stopped: ${detail} No automatic regeneration or publication retry.`,
         },
       });
     }
