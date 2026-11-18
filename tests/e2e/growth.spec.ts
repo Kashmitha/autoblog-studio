@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+
+test('promotion packs, attributed audience reports and research briefs work on desktop and mobile', async ({ page }) => {
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as unknown as {copied:string}).copied=text;}}});});
+  const blog='https://fixture.blogspot.com/',url=blog+'docker.html';
+  const channels=['linkedin','reddit','newsletter'].map((source,i)=>({source,label:['LinkedIn','Developer community','Newsletter'][i],url:url+'?utm_source='+source+'&utm_medium=social&utm_campaign=article-fixture',text:'Docker volumes explained\n\nKeep persistent files.\n\n'+url+'?utm_source='+source}));
+  await page.route('**/api/**',async route=>{
+    const p=new URL(route.request().url()).pathname;
+    const fulfill=(json:unknown)=>route.fulfill({json});
+    if(p==='/api/auth/session')return fulfill({email:'growth@localhost',csrfToken:'fixture'});
+    if(p==='/api/integrations')return fulfill({bloggerMode:'live',google:{blogUrl:blog},aiEnabled:false});
+    if(p==='/api/dashboard')return fulfill({traffic:{pageviews:null,clicks:null,impressions:null,ctr:null,viewSource:null,searchSource:null}});
+    if(p==='/api/seo/indexing')return fulfill({configuration:{},articles:[]});
+    if(p==='/api/reports/search-console/status')return fulfill({configuration:{},history:[],lastSuccess:null,lastAttempt:null,nextAutomaticSyncAt:null});
+    if(p==='/api/traffic/articles')return fulfill({days:28,current:{start:'2026-10-21',end:'2026-11-17'},previous:{start:'2026-09-23',end:'2026-10-20'},articles:[]});
+    if(p==='/api/growth/articles')return fulfill([{id:'fixture',title:'Docker volumes explained'}]);
+    if(p==='/api/growth/articles/fixture/promotion')return fulfill({articleId:'fixture',title:'Docker volumes explained',campaign:'article-fixture',summary:'Keep persistent files.',note:'Review before sharing.',channels,related:[{id:'other',title:'Back up a Docker volume',url:blog+'backup.html',sharedTerms:['docker']}]});
+    if(p==='/api/growth/research-briefs')return fulfill({id:'new-brief',created:true});
+    if(p==='/api/growth/reports')return fulfill({generatedAt:'2026-11-18T12:00:00Z',days:28,gaRange:{start:'2026-10-21',end:'2026-11-17'},gaTimeZone:'Asia/Colombo',searchRange:{start:'2026-10-21',end:'2026-11-17'},note:'Attributed sessions are not raw link clicks.',audience:[{dimension:'country',status:'OK',rows:[{label:'Canada',sessions:8,engagedSessions:4,engagementRate:.5,pageviews:12}]},{dimension:'sessionSourceMedium',status:'ERROR',rows:[],note:'Reporting access needs attention.'},{dimension:'sessionCampaignName',status:'EMPTY',rows:[]}],queries:{status:'OK',rows:[{query:'docker storage',url,impressions:80,clicks:0,ctr:0,position:10,action:'Improve the existing answer.'}]}});
+    return fulfill({results:[],remaining:0,skipped:true,sync:null,imported:0});
+  });
+  await page.goto('/analytics');
+  const growth=page.getByRole('region',{name:'Audience growth tools'});
+  await growth.getByRole('button',{name:'Prepare promotion pack'}).click();
+  await expect(growth.getByLabel('LinkedIn tracked link')).toHaveValue(/utm_source=linkedin/);
+  await growth.getByRole('button',{name:'Copy tracked link'}).first().click();
+  expect(await page.evaluate(()=>(window as unknown as {copied:string}).copied)).toContain('utm_campaign=article-fixture');
+  await expect(growth.getByRole('link',{name:'Back up a Docker volume'})).toHaveAttribute('href','/articles/other');
+  await growth.getByRole('button',{name:'Read audience and search queries'}).click();
+  await expect(growth.getByText('Canada',{exact:true})).toBeVisible();
+  await expect(growth.getByText('50.0%',{exact:true})).toBeVisible();
+  await expect(growth.getByText('Reporting access needs attention.')).toBeVisible();
+  await growth.getByRole('button',{name:'Save research brief'}).click();
+  await expect(growth.getByRole('link',{name:'Open research brief'})).toHaveAttribute('href','/articles/new-brief');
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await growth.screenshot({path:'.local/screenshots/growth-mobile.png'});
+  await page.setViewportSize({width:1440,height:1000});
+  await growth.screenshot({path:'.local/screenshots/growth-desktop.png'});
+  await page.getByRole('button',{name:'Switch to dark theme'}).click();
+  await growth.screenshot({path:'.local/screenshots/growth-dark.png'});
+  expect(errors).toEqual([]);
+});
