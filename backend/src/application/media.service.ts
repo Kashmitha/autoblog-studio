@@ -127,6 +127,25 @@ export class MediaService {
       throw new BadRequestException(
         "Review commercial reuse rights and confirm the license before import.",
       );
+    const { providerPhotoId, automaticPhoto, photoKeywords, ...data } = dto;
+    const tags = [
+      ...new Set((photoKeywords || []).map((t) => t.trim()).filter(Boolean)),
+    ];
+    if (
+      automaticPhoto &&
+      (dto.provider === "UNSPLASH" ||
+        !tags.length ||
+        ![
+          "CC0",
+          "Public domain",
+          "CC BY 4.0",
+          "CC BY-SA 4.0",
+          "Original work",
+        ].includes(dto.license))
+    )
+      throw new BadRequestException(
+        "Automatic photos require a supported license, real-photo confirmation and subject keywords. Unsplash API imports stay manual.",
+      );
     if (dto.provider === "UNSPLASH") {
       if (!process.env.UNSPLASH_ACCESS_KEY)
         throw new BadRequestException("Unsplash API key missing.");
@@ -155,12 +174,22 @@ export class MediaService {
       if (new URL(dto.url).hostname !== "images.unsplash.com")
         throw new BadRequestException("Preserve Unsplash image hotlink URLs.");
     }
-    const { providerPhotoId, ...data } = dto;
     return this.db.mediaAsset.create({
       data: {
         ...data,
         metadata: {
           ...(providerPhotoId ? { providerPhotoId } : {}),
+          ...(automaticPhoto
+            ? {
+                editorialPhoto: {
+                  enabled: true,
+                  tags,
+                  confirmedAt: new Date().toISOString(),
+                  confirmedBy: "owner",
+                  reviewKind: "IMPORT_REAL_PHOTO_CONFIRMATION",
+                },
+              }
+            : {}),
           licenseCheckedBy: "owner",
           checkedAt: new Date().toISOString(),
         },

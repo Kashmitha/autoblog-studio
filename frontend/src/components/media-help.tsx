@@ -30,6 +30,8 @@ const initial = {
   attribution: "",
   rightsConfirmed: false,
   providerPhotoId: "",
+  automaticPhoto: false,
+  photoKeywordsText: "",
 };
 export function MediaLibrary({ notify }: ViewProps) {
   const r = useResource<Media[]>("/media"),
@@ -360,12 +362,18 @@ export function MediaLibrary({ notify }: ViewProps) {
                   ] as const)
                     body.append(key, form[key]);
                   body.append("rightsConfirmed", String(form.rightsConfirmed));
+                  body.append("automaticPhoto", String(form.automaticPhoto));
+                  body.append("photoKeywords", form.photoKeywordsText);
                   if (form.url) body.append("publicUrl", form.url);
                   await api("/media/upload", { method: "POST", body });
                 } else {
-                  const { profileUrl, ...data } = form;
+                  const { profileUrl, photoKeywordsText, ...data } = form;
                   await post("/media", {
                     ...data,
+                    photoKeywords: photoKeywordsText
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean),
                     ...(profileUrl ? { profileUrl } : {}),
                   });
                 }
@@ -539,6 +547,33 @@ export function MediaLibrary({ notify }: ViewProps) {
               I reviewed the original source, commercial reuse rights,
               attribution and any third-party restrictions.
             </label>
+            {form.provider !== "UNSPLASH" && (
+              <>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={form.automaticPhoto}
+                    onChange={(e) =>
+                      setForm({ ...form, automaticPhoto: e.target.checked })
+                    }
+                  />
+                  I confirm this is a real photograph (not AI-generated or a
+                  render), and allow automatic single-use article selection.
+                </label>
+                {form.automaticPhoto && (
+                  <Field label="Photo subject keywords (comma-separated)">
+                    <input
+                      required
+                      value={form.photoKeywordsText}
+                      onChange={(e) =>
+                        setForm({ ...form, photoKeywordsText: e.target.value })
+                      }
+                      placeholder="laptop, keyboard, programming"
+                    />
+                  </Field>
+                )}
+              </>
+            )}
             <Notice>
               License metadata is evidence for your review, not a legal
               guarantee. Reject unclear or noncommercial-only images.

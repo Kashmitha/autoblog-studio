@@ -50,6 +50,7 @@ export type PhotoCandidate = {
   rightsConfirmed: boolean;
   metadata: unknown;
   checkedAt: Date;
+  sourceUrl?: string;
 };
 export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
   const meta = photo.metadata as {

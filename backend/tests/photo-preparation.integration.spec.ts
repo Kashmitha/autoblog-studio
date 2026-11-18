@@ -330,3 +330,78 @@ test("a photo on an old published article is never recycled automatically", asyn
   const next = await draft(3);
   expect((await photos.prepare(next.id, next.version)).state).toBe("BLOCKED");
 });
+
+test("reviewed supported import enrolls the photo without a separate pool action", async () => {
+  const fixture = await photo();
+  const {
+    title,
+    url,
+    alt,
+    creator,
+    sourceUrl,
+    provider,
+    license,
+    licenseUrl,
+    attribution,
+    rightsConfirmed,
+  } = fixture;
+  const imported = await agent
+    .post("/api/media")
+    .set("Origin", "http://localhost:3100")
+    .set("X-CSRF-Token", csrf)
+    .send({
+      title,
+      url,
+      alt,
+      creator,
+      sourceUrl,
+      provider,
+      license,
+      licenseUrl,
+      attribution,
+      rightsConfirmed,
+      automaticPhoto: true,
+      photoKeywords: ["laptop", "programming"],
+    })
+    .expect(201);
+  expect(imported.body.metadata.editorialPhoto.enabled).toBe(true);
+  const status = await agent.get("/api/editorial").expect(200);
+  expect(
+    status.body.pool.find((p: { id: string }) => p.id === imported.body.id)
+      .eligible,
+  ).toBe(true);
+});
+
+test("automatic Unsplash enrollment rejects before any provider request", async () => {
+  const fixture = await photo();
+  const {
+    title,
+    url,
+    alt,
+    creator,
+    sourceUrl,
+    licenseUrl,
+    attribution,
+    rightsConfirmed,
+  } = fixture;
+  await agent
+    .post("/api/media")
+    .set("Origin", "http://localhost:3100")
+    .set("X-CSRF-Token", csrf)
+    .send({
+      title,
+      url,
+      alt,
+      creator,
+      sourceUrl,
+      provider: "UNSPLASH",
+      license: "Unsplash",
+      licenseUrl,
+      attribution,
+      rightsConfirmed,
+      automaticPhoto: true,
+      photoKeywords: ["laptop"],
+    })
+    .expect(400);
+  expect(fetch).not.toHaveBeenCalled();
+});

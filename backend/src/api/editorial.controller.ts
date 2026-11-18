@@ -38,7 +38,7 @@ class EditorialSettingsDto {
   @IsOptional() @IsBoolean() autoPlan?: boolean;
   @IsInt() @Min(0) revision!: number;
   @IsArray()
-  @ArrayMinSize(2)
+  @ArrayMinSize(1)
   @ArrayMaxSize(2)
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { each: true })
   times!: string[];

@@ -17,6 +17,7 @@ import {
   EDITORIAL_ENABLE,
   EDITORIAL_PUBLISH,
   PHOTO_CONFIRMATION,
+  choosePhoto,
 } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
@@ -24,6 +25,7 @@ import sanitizeHtml from "sanitize-html";
 import { aiConfiguration } from "../domain/ai-config";
 import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
 import { CommonsPhotoService } from "./commons-photo.service";
+import { articlePhotoTerms } from "../domain/photo-preparation";
 import { commonsAutoEnabled } from "../domain/commons-photo";
 
 export type EditorialInput = {
@@ -102,9 +104,11 @@ export class EditorialService {
     const ai = aiConfiguration();
     const paidReady = ai.ready; // retained API field for existing clients
     const blockers: string[] = [...ai.blockers];
-    if (Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < 2)
+    if (
+      Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < settings.times.length
+    )
       blockers.push(
-        "Text-generation daily limit must allow two drafts; the monthly spending cap still applies.",
+        "Text-generation daily limit must cover the configured daily slots; the monthly spending cap still applies.",
       );
     if (!heartbeat || Date.now() - heartbeat.lastSeen.getTime() > 120000)
       blockers.push(
@@ -166,9 +170,9 @@ export class EditorialService {
       publishingBlockers.push(
         "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash stays manual.",
       );
-    if ((c.automation?.dailyLimit || 0) < 2)
+    if ((c.automation?.dailyLimit || 0) < c.settings.times.length)
       publishingBlockers.push(
-        "Set the publishing daily limit to at least two; the pipeline itself never exceeds two slots per day.",
+        "Set the publishing daily limit to cover the configured daily slots (one or two).",
       );
     return {
       settings: c.settings,
@@ -221,9 +225,12 @@ export class EditorialService {
     };
   }
   async save(input: EditorialInput) {
-    if (input.times.length !== 2 || new Set(input.times).size !== 2)
+    if (
+      ![1, 2].includes(input.times.length) ||
+      new Set(input.times).size !== input.times.length
+    )
       throw new BadRequestException(
-        "Choose two different daily times in Asia/Colombo.",
+        "Choose one daily time, or two different times, in Asia/Colombo.",
       );
     const c = await this.context();
     if (input.enabled) {
@@ -243,8 +250,21 @@ export class EditorialService {
         input.autoPublish ? status.publishingBlockers : status.draftBlockers
       ).filter(
         (message) =>
-          !(input.autoPlan && message.startsWith("Add source-backed")),
+          !(input.autoPlan && message.startsWith("Add source-backed")) &&
+          !message.startsWith("Text-generation daily limit") &&
+          !message.startsWith("Set the publishing daily limit"),
       );
+      if (
+        Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < input.times.length
+      )
+        blockers.push(
+          "Text-generation limit must cover the selected daily slots.",
+        );
+      if (
+        input.autoPublish &&
+        (c.automation?.dailyLimit || 0) < input.times.length
+      )
+        blockers.push("Publishing limit must cover the selected daily slots.");
       if (blockers.length) throw new BadRequestException(blockers.join(" "));
     }
     return this.db.$transaction(async (tx) => {
@@ -277,7 +297,7 @@ export class EditorialService {
       await tx.auditLog.create({
         data: {
           action: "EDITORIAL_POLICY_SAVED",
-          message: `Owner ${input.enabled ? "enabled" : "disabled"} ${input.autoPublish ? "automatic-policy publishing" : "review-only drafting"}; maximum two daily slots; revision ${saved.revision}.`,
+          message: `Owner ${input.enabled ? "enabled" : "disabled"} ${input.autoPublish ? "automatic-policy publishing" : "review-only drafting"}; ${saved.times.length} daily slot(s); revision ${saved.revision}.`,
         },
       });
       return saved;
@@ -385,11 +405,11 @@ export class EditorialService {
               lt: start.plus({ days: 1 }).toJSDate(),
             },
           },
-        })) >= 2
+        })) >= c.settings.times.length
       )
         return {
           queued: false,
-          note: "Two editorial slots have already been attempted today. No automatic regeneration retry is allowed.",
+          note: "The configured daily editorial attempt limit has been reached. No automatic text regeneration retry is allowed.",
         };
       for (const slot of editorialSlots(c.settings.times, new Date(), manual)) {
         if (await tx.editorialRun.findUnique({ where: { slotKey: slot.key } }))
@@ -596,8 +616,43 @@ export class EditorialService {
           orderBy: { updatedAt: "desc" },
           take: 30,
         });
+        const imageLed = policy.autoPlan && policy.times.length === 1;
+        const imagePlans = imageLed
+          ? referenceBriefs
+              .map((pack) => {
+                const photo = choosePhoto(
+                  c.photos.filter((p) => !p.articles.length),
+                  `${pack.title} ${pack.intent} ${articlePhotoTerms({ ...pack, generation: null }).join(" ")}`,
+                );
+                return { ...pack, photo };
+              })
+              .filter((plan) => plan.photo)
+          : [];
+        const imagePlan = imageLed
+          ? chooseVariedBrief(
+              imagePlans,
+              recent.map((a) => a.niche),
+            )
+          : undefined;
+        if (imageLed && !imagePlan?.photo)
+          throw new BadRequestException(
+            "No unused library photograph matches the supported source-backed topics. Refill the reviewed library before the next daily slot.",
+          );
+        if (imagePlan?.photo) {
+          run.candidates = [
+            {
+              mediaId: imagePlan.photo.id,
+              title: imagePlan.photo.title,
+              sourceUrl: imagePlan.photo.sourceUrl || "",
+            },
+          ];
+          await this.db.editorialRun.update({
+            where: { id: run.id },
+            data: { candidates: run.candidates as Prisma.InputJsonValue },
+          });
+        }
         let candidate = chooseVariedBrief(
-          c.readyBriefs,
+          imageLed ? [] : c.readyBriefs,
           recent.map((a) => a.niche),
         );
         if (!candidate && policy.autoPlan) {
@@ -605,17 +660,19 @@ export class EditorialService {
             where: { articleId: { not: null } },
           });
           const pack =
+            imagePlan ||
             chooseVariedBrief(
               referenceBriefs,
               recent.map((a) => a.niche),
-            ) || referenceBriefs[count % referenceBriefs.length];
+            ) ||
+            referenceBriefs[count % referenceBriefs.length];
           candidate = await this.db.article.create({
             data: {
               title: `A new practical question about ${pack.niche}`,
               slug: `editorial-topic-${run.id}`,
               niche: pack.niche,
               status: "PLANNED",
-              intent: `Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
+              intent: `${imagePlan?.photo ? `Illustrative photo subject: ${imagePlan.photo.title}. ${imagePlan.photo.alt}. Choose an article relevant to this photograph; never claim the photo documents executed tests or a product screenshot. ` : ""}Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
               planningNotes:
                 "Automatically planned from owner-enabled primary-reference packs across developer topics. This is not a claim of human fact checking or search demand.",
               sources: {
@@ -706,7 +763,27 @@ export class EditorialService {
       let photo = null;
       await this.active(run);
       try {
-        photo = (await this.commons.select(a, searchTerms))?.photo || null;
+        const pinned = Array.isArray(run.candidates)
+          ? run.candidates.find(
+              (v) =>
+                v &&
+                typeof v === "object" &&
+                !Array.isArray(v) &&
+                typeof v.mediaId === "string",
+            )
+          : null;
+        if (
+          pinned &&
+          typeof pinned === "object" &&
+          !Array.isArray(pinned) &&
+          typeof pinned.mediaId === "string"
+        ) {
+          const planned = await this.db.mediaAsset.findUnique({
+            where: { id: pinned.mediaId },
+          });
+          photo = planned && photoPolicy(planned) ? planned : null;
+        } else
+          photo = (await this.commons.select(a, searchTerms))?.photo || null;
       } catch {
         /* Preserve the generated draft if image discovery is unavailable. */
       }
@@ -728,7 +805,17 @@ export class EditorialService {
             state: "BLOCKED_MEDIA",
             stage: "PHOTO",
             articleVersion: a.version,
-            candidates,
+            candidates:
+              Array.isArray(run.candidates) &&
+              run.candidates.some(
+                (v) =>
+                  v &&
+                  typeof v === "object" &&
+                  !Array.isArray(v) &&
+                  typeof v.mediaId === "string",
+              )
+                ? (run.candidates as Prisma.InputJsonValue)
+                : candidates,
             finishedAt: new Date(),
             message:
               "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text. With automatic publishing enabled, Studio also retries this saved photo stage up to three times, two minutes apart, while the slot is more than ten minutes away.",

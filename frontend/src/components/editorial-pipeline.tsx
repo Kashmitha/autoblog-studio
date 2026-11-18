@@ -462,6 +462,29 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
             limits. Paid providers require current prices, spending caps and
             billing consent in private .env.
           </p>
+          <Field label="Posts per day">
+            <select
+              value={policy.times.length}
+              onChange={(e) =>
+                setDraft({
+                  ...policy,
+                  times:
+                    Number(e.target.value) === 1
+                      ? [policy.times[0] || "09:00"]
+                      : [policy.times[0] || "09:00", "17:00"],
+                })
+              }
+            >
+              <option value={1}>One post per day - image-led planning</option>
+              <option value={2}>Two posts per day</option>
+            </select>
+          </Field>
+          <p className="small subtle">
+            One-post mode with topic refill enabled chooses an unused reviewed
+            library photo first, then creates a related source-backed title and
+            article. Empty or unsupported photo subjects stop preparation before
+            a text-generation call.
+          </p>
           <div className="two-column">
             {policy.times.map((time, index) => (
               <Field

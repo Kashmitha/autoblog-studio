@@ -666,3 +666,42 @@ test("photo recovery respects pause, scheduling window and draft version", async
     (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
   ).toBe("BLOCKED_MEDIA");
 });
+
+test("one daily image-led slot pins its unused library photo and prevents a second attempt", async () => {
+  const image = await pool();
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  expect((await service.queue()).queued).toBe(true);
+  expect((await service.queue()).queued).toBe(false);
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow({
+    include: { article: { include: { media: true } } },
+  });
+  expect(run.state).toBe("SCHEDULED");
+  expect(run.article?.intent).toContain("Illustrative photo subject");
+  expect(run.article?.media.map((m) => m.mediaId)).toEqual([image.id]);
+  expect(generated).toBe(1);
+});
+
+test("empty image-led library stops before any text-generation call", async () => {
+  const image = await pool();
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  await db.mediaAsset.delete({ where: { id: image.id } });
+  await service.queue();
+  await service.tick();
+  expect(generated).toBe(0);
+  expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
+});
