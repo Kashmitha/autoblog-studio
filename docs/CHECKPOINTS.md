@@ -92,7 +92,7 @@ The owner already has the blog property and reports sitemap Success. Do not repe
 3. Choose **Load verified properties**, select the already verified matching property and **Use this property**. The UI saves it locally; SEARCH_CONSOLE_SITE_URL remains an environment fallback, not a required duplicate setup step.
 4. On the published article, refresh **Google indexing** and compare its stored verdict and crawl time with Search Console. This is not Test Live URL and does not request indexing. Scheduled articles stay ineligible until Blogger confirms publication.
 5. In Traffic & SEO, sync a small date range. Compare real date/page rows with the official report. Reporting delays, property timezones and Search Console top-row limits may explain differences. See [the complete guide](SEARCH_CONSOLE.md).
-6. For optional pageviews, configure actual GA4 tracking/property, enable Analytics Data API, set GA_PROPERTY_ID privately and authorize Google Analytics read access. This is not required for indexing inspection or search clicks/impressions.
+6. For optional pageviews, configure actual GA4 tracking/property, enable Analytics Data API and use **Blog connections → Google Analytics connection** to authorize read access and save the numeric Property ID plus G- Measurement ID. Follow [the GA4 setup guide](GOOGLE_ANALYTICS.md). Legacy GA_PROPERTY_ID remains a fallback. This is not required for indexing inspection or search clicks/impressions.
 
 Success: real source-labeled records, with unavailable values left blank. This app does not initiate a payment. If the external platform requires a billable change, review before accepting.
 

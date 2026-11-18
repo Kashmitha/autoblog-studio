@@ -16,6 +16,7 @@ import { ViewProps, PageHeading, ResourceState } from "./views";
 import { useAction, useResource } from "./hooks";
 import { Badge, Field, Modal, Notice } from "./ui";
 import { SearchConsoleConnection } from "./indexing";
+import { AnalyticsConnection } from "./analytics-connection";
 export function Connections({ notify }: ViewProps) {
   const r = useResource<Integrations>("/integrations"),
     a = useAction(notify);
@@ -403,23 +404,9 @@ export function Connections({ notify }: ViewProps) {
                 text="Developer API key required. Hotlink images and preserve download tracking and attribution."
               />
             </div>
-            <button
-              className="secondary"
-              disabled={!d.googleConfigured || a.busy}
-              onClick={() =>
-                a.run(async () => {
-                  const x = await api<{ url: string }>(
-                    "/integrations/google/connect?analytics=true",
-                  );
-                  window.location.href = x.url;
-                })
-              }
-            >
-              <Plug size={16} />
-              Authorize Google Analytics read access
-            </button>
           </section>
           <SearchConsoleConnection notify={notify} />
+          <AnalyticsConnection notify={notify} />
           <section className="panel padded spaced">
             <h2>Local configuration checklist</h2>
             <ol className="help-list">
@@ -452,7 +439,7 @@ export function Connections({ notify }: ViewProps) {
               <li>
                 For Search Console, use the connection panel to enable its API,
                 grant read access and select your verified property. Analytics
-                is optional and uses GA_PROPERTY_ID with separate read access.
+                has its own configuration panel below with separate read access.
               </li>
               <li>
                 Never post secrets in chat or commit .env. Detailed instructions

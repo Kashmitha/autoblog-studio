@@ -377,6 +377,20 @@ async function installFixture(page: Page, configured = true) {
           ],
         },
       });
+    if (path === "/api/integrations/analytics/configuration")
+      return route.fulfill({
+        json: {
+          propertyId: null,
+          measurementId: null,
+          blogUrl: "https://fixture.example/",
+          configured: false,
+          readAccess: false,
+          googleConnected: true,
+          googleConfigured: true,
+          revision: 0,
+          destinationChanged: false,
+        },
+      });
     throw new Error("Unexpected indexing fixture request: " + path);
   });
   return {

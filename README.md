@@ -63,6 +63,8 @@ Integration tests automatically create **autoblog_test**, run migrations there a
 
 ## Documentation
 
+- [Connect Google Analytics to Blogger and Studio](docs/GOOGLE_ANALYTICS.md)
+
 Open [AutoBlog Studio](http://localhost:3100/) for the publishing workspace. The retired `/welcome` route redirects to the same homepage.
 
 - [Setup & environment variables](docs/SETUP.md)
