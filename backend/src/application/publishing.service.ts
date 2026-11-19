@@ -8,6 +8,7 @@ import { Queue, UnrecoverableError } from "bullmq";
 import { DateTime } from "luxon";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../infrastructure/prisma.service";
+import { withDatabaseLock } from "../infrastructure/database-lock";
 import { ArticlesService } from "./articles.service";
 import { LiveBloggerAdapter } from "../infrastructure/blogger.service";
 import { publicationHtml } from "../domain/publication";
@@ -135,34 +136,38 @@ export class PublishingService implements OnModuleDestroy {
     );
   }
   async cancel(id: string) {
-    await this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
-      const a = await tx.article.findUniqueOrThrow({ where: { id } });
-      if (a.publishingTarget === "blogger")
-        throw new ConflictException(
-          "Cancel this schedule on Blogger, then sync. Local controls cannot cancel Google's schedule.",
-        );
-      if (a.status !== "SCHEDULED")
-        throw new BadRequestException(
-          "Only scheduled articles can be canceled.",
-        );
-      await tx.publishJob.updateMany({
-        where: { articleId: id, state: "PENDING" },
-        data: { state: "CANCELED" },
-      });
-      await tx.article.update({
-        where: { id },
-        data: { status: "APPROVED", scheduledAt: null },
-      });
-      await tx.articleEvent.create({
-        data: {
-          articleId: id,
-          from: "SCHEDULED",
-          to: "APPROVED",
-          reason: "Owner canceled publication.",
-        },
-      });
-    });
+    await withDatabaseLock(
+      this.db,
+      8172142,
+      async (tx) => {
+        const a = await tx.article.findUniqueOrThrow({ where: { id } });
+        if (a.publishingTarget === "blogger")
+          throw new ConflictException(
+            "Cancel this schedule on Blogger, then sync. Local controls cannot cancel Google's schedule.",
+          );
+        if (a.status !== "SCHEDULED")
+          throw new BadRequestException(
+            "Only scheduled articles can be canceled.",
+          );
+        await tx.publishJob.updateMany({
+          where: { articleId: id, state: "PENDING" },
+          data: { state: "CANCELED" },
+        });
+        await tx.article.update({
+          where: { id },
+          data: { status: "APPROVED", scheduledAt: null },
+        });
+        await tx.articleEvent.create({
+          data: {
+            articleId: id,
+            from: "SCHEDULED",
+            to: "APPROVED",
+            reason: "Owner canceled publication.",
+          },
+        });
+      },
+      { timeout: 15000, maxWait: 15000 },
+    );
     return { ok: true };
   }
   async reconcile() {
@@ -250,9 +255,10 @@ export class PublishingService implements OnModuleDestroy {
   async process(id: string) {
     // A transaction-held advisory lock serializes workers. Article/attempt records use
     // separate committed transactions so a process crash cannot erase remote-call intent.
-    return this.db.$transaction(
-      async (lock) => {
-        await lock.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
+    return withDatabaseLock(
+      this.db,
+      8172142,
+      async () => {
         return this.executeLocked(id);
       },
       { timeout: 120000, maxWait: 120000 },
@@ -529,9 +535,10 @@ export class PublishingService implements OnModuleDestroy {
       throw new BadRequestException(
         "Confirm LINK EXISTING BLOGGER POST after checking the remote draft.",
       );
-    return this.db.$transaction(
-      async (lock) => {
-        await lock.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
+    return withDatabaseLock(
+      this.db,
+      8172142,
+      async () => {
         const a = await this.articles.get(id);
         if (a.status !== "FAILED" || !a.draftAttemptedAt)
           throw new BadRequestException(
@@ -558,7 +565,7 @@ export class PublishingService implements OnModuleDestroy {
         });
         return { ok: true };
       },
-      { timeout: 60000 },
+      { timeout: 60000, maxWait: 60000 },
     );
   }
 }

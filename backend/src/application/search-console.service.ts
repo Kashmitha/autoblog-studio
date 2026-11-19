@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import type { Article, IndexInspection, Prisma } from "@prisma/client";
 import { PrismaService } from "../infrastructure/prisma.service";
+import { withDatabaseLock } from "../infrastructure/database-lock";
 import { GoogleService } from "../infrastructure/blogger.service";
 import { SearchConsoleAdapter } from "../infrastructure/search-console.adapter";
 import {
@@ -276,11 +277,12 @@ export class SearchConsoleService {
   }
   async inspect(id: string, automatic = false) {
     const configuration = await this.configuration();
-    const cached = await this.db.$transaction(
+    const cached = await withDatabaseLock(
+      this.db,
+      8172201,
       async (tx) => {
         // Serialize quota decisions and coalesce concurrent refreshes. This lock
         // is independent of publication locks and never contacts Blogger writes.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172201)`;
         const a = await tx.article.findUnique({ where: { id } });
         if (!a) throw new NotFoundException("Article not found.");
         const readiness = this.view(a, configuration, []);
