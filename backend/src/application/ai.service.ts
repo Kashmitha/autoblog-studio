@@ -135,6 +135,8 @@ export class AiService {
           : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Record genuinely unsupported code or claims in uncertainties. Documented examples may be labelled illustrative without claiming they were executed. Omit invented HTTP output, dates and platform differences that are absent from the supplied references. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
       research,
       repairFeedback: repairFeedback?.slice(0, 1000),
+      outputContract:
+        "Return all required fields as a complete replacement JSON object. html must contain the full article body as a string. A repair is not a patch. For draft tasks topics must be an empty array.",
       previousDraft:
         repairFeedback && a
           ? {

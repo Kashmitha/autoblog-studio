@@ -40,3 +40,5 @@ Source excerpts now select relevant sections from long references instead of usi
 Before preparing a new slot, Studio checks publication reservations for that Sri Lanka date. An existing Blogger schedule that fills the daily limit prevents another model call and duplicate preparation. Changing the workflow time does not move an already accepted Blogger schedule.
 
 Run history reflects the confirmed article status after manual Blogger scheduling or publication, while retaining the original preparation slot. Its message shows the actual publication date/time so a resolved run is not left displaying an old review stop.
+
+A definitive Groq `json_validate_failed` response may use that same one text-repair allowance to request all required article fields. No partial response is accepted, and timeouts or uncertain Blogger writes are not retried. Repair prompts explicitly require the complete replacement `html` field.

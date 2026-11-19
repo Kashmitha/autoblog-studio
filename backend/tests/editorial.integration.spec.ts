@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import request from "supertest";
-import type { INestApplication } from "@nestjs/common";
+import { BadRequestException, type INestApplication } from "@nestjs/common";
 import { createApp } from "../src/bootstrap";
 import { PrismaService } from "../src/infrastructure/prisma.service";
 import { EditorialService } from "../src/application/editorial.service";
@@ -910,4 +910,28 @@ test("history reports a manually accepted Blogger schedule instead of an old rev
   expect(status.runs[0].state).toBe("SCHEDULED");
   expect(status.runs[0].stage).toBe("DONE");
   expect(status.runs[0].message).toContain("Blogger confirmed");
+});
+
+test("one definitive schema rejection uses the same single repair allowance before automatic scheduling", async () => {
+  const ai = app.get(AiService),
+    generate = jest.mocked(ai.generate).getMockImplementation()!;
+  let calls = 0;
+  jest
+    .spyOn(ai, "generate")
+    .mockImplementation(async (dto, version, feedback) => {
+      calls++;
+      if (calls === 1)
+        throw new BadRequestException(
+          "Groq structured output validation failed (json_validate_failed).",
+        );
+      expect(feedback).toContain("COMPLETE JSON");
+      return generate(dto, version, feedback);
+    });
+  await pool();
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  expect(calls).toBe(2);
+  expect((await db.editorialRun.findFirstOrThrow()).state).toBe("SCHEDULED");
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
 });

@@ -192,3 +192,24 @@ test("key test reads model access without a generation request or billing claim"
   expect(fetch.mock.calls[0][0]).toBe("https://api.groq.com/openai/v1/models");
   expect(fetch.mock.calls[0][1]?.body).toBeUndefined();
 });
+
+test("schema rejection is classified without exposing failed draft text or replaying a request", async () => {
+  const fetch = jest
+    .spyOn(global, "fetch")
+    .mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "json_validate_failed",
+            message: "private details",
+            failed_generation: "private draft",
+          },
+        }),
+        { status: 400 },
+      ),
+    );
+  await expect(
+    new GroqProvider().generate("fixture", 4000, "openai/gpt-oss-20b"),
+  ).rejects.toThrow("(json_validate_failed)");
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
