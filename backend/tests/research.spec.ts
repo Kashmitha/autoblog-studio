@@ -42,3 +42,23 @@ test("Git reference excerpts begin with the manual rather than long version hist
     ),
   ).toMatch(/^NAMEgit-show|^NAME git-show/);
 });
+
+test("topic excerpts find option definitions after long alphabetical manuals", () => {
+  const noise =
+    "<h2>Unrelated introduction</h2><p>" +
+    "Unrelated general information. ".repeat(250) +
+    "</p>";
+  const html =
+    noise +
+    '<p class="level0"><span class="nroffip">-I, --head</span></p><p>Fetch the headers only with HEAD. curl -I URL is a documented example.</p>' +
+    '<p class="level0"><span class="nroffip">-L, --location</span></p><p>Follow a redirect to a new location. Headers from requested pages are shown.</p>' +
+    '<p class="level0"><span class="nroffip">--max-redirs</span></p><p>Set the redirect limit used with --location. The default is 50 redirects.</p>';
+  const excerpt = referenceExcerpt(
+    html,
+    "curl HEAD headers and redirect limitations",
+  );
+  expect(excerpt).toContain("Fetch the headers only");
+  expect(excerpt).toContain("--max-redirs");
+  expect(excerpt).toContain("50 redirects");
+  expect(excerpt.length).toBeLessThanOrEqual(3500);
+});

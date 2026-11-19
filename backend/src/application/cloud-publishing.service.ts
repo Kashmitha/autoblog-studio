@@ -536,6 +536,16 @@ export class CloudPublishingService {
           error,
         },
       });
+      if (remote.status === "SCHEDULED" || remote.status === "LIVE")
+        await tx.editorialRun.updateMany({
+          where: { articleId: id, blogId: a.remoteBlogId },
+          data: {
+            state: remote.status === "LIVE" ? "PUBLISHED" : "SCHEDULED",
+            stage: "DONE",
+            finishedAt: new Date(),
+            message: `Blogger confirmed ${remote.status} at ${date!.toISOString()}. The original preparation slot is retained in run history.`,
+          },
+        });
       if (a.status !== status)
         await tx.articleEvent.create({
           data: {

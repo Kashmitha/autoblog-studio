@@ -144,7 +144,16 @@ export class EditorialService {
       take: 20,
       include: {
         article: {
-          select: { id: true, title: true, status: true, publishedUrl: true },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            publishedUrl: true,
+            scheduledAt: true,
+            publishedAt: true,
+            remoteStatus: true,
+            publishingTarget: true,
+          },
         },
       },
     });
@@ -220,6 +229,23 @@ export class EditorialService {
       })),
       runs: runs.map((run) => ({
         ...run,
+        ...(run.article?.publishingTarget === "blogger" &&
+        ["SCHEDULED", "LIVE"].includes(run.article.remoteStatus || "")
+          ? {
+              state:
+                run.article.remoteStatus === "LIVE" ? "PUBLISHED" : "SCHEDULED",
+              stage: "DONE",
+              message: `Blogger confirmed ${run.article.remoteStatus}. Publication: ${DateTime.fromJSDate(
+                (run.article.remoteStatus === "LIVE"
+                  ? run.article.publishedAt
+                  : run.article.scheduledAt) || run.slotAt,
+              )
+                .setZone("Asia/Colombo")
+                .toFormat(
+                  "d LLL yyyy, HH:mm",
+                )} Sri Lanka time. This row's slot is the original preparation request.`,
+            }
+          : {}),
         photoRetries:
           retries.find((row) => row.entityId === run.id)?._count._all || 0,
       })),
@@ -477,7 +503,22 @@ export class EditorialService {
           queued: false,
           note: "The configured daily editorial attempt limit has been reached. No automatic text regeneration retry is allowed.",
         };
+      let reservedDay = false;
       for (const slot of editorialSlots(c.settings.times, new Date(), manual)) {
+        const day = DateTime.fromJSDate(slot.at).setZone("Asia/Colombo");
+        const reservations = await tx.publishJob.count({
+          where: {
+            scheduledAt: {
+              gte: day.startOf("day").toJSDate(),
+              lte: day.endOf("day").toJSDate(),
+            },
+            state: { notIn: ["CANCELED", "FAILED"] },
+          },
+        });
+        if (reservations >= (c.automation?.dailyLimit || 1)) {
+          reservedDay = true;
+          continue;
+        }
         if (await tx.editorialRun.findUnique({ where: { slotKey: slot.key } }))
           continue;
         const run = await tx.editorialRun.create({
@@ -492,7 +533,9 @@ export class EditorialService {
       }
       return {
         queued: false,
-        note: "No unreserved slot is currently available. Missed slots are not backfilled in a burst.",
+        note: reservedDay
+          ? "An existing publication already fills the daily limit for the available date. Its Blogger schedule is retained; no duplicate draft was generated."
+          : "No unreserved slot is currently available. Missed slots are not backfilled in a burst.",
       };
     });
   }
@@ -862,10 +905,37 @@ export class EditorialService {
           return saved;
         });
         await this.active(run);
-        let generated = await this.ai.generate(
-          { task: "draft", articleId: a.id, niche: a.niche },
-          a.version,
-        );
+        let textRepairUsed = false;
+        let generated: Awaited<ReturnType<AiService["generate"]>>;
+        try {
+          generated = await this.ai.generate(
+            { task: "draft", articleId: a.id, niche: a.niche },
+            a.version,
+          );
+        } catch (error) {
+          if (
+            !policy.autoPublish ||
+            !(error instanceof BadRequestException) ||
+            !error.message.includes("(json_validate_failed)")
+          )
+            throw error;
+          await this.active(run);
+          textRepairUsed = true;
+          await this.db.editorialRun.update({
+            where: { id: run.id },
+            data: {
+              stage: "TEXT_REPAIR",
+              articleVersion: a.version,
+              message:
+                "Groq rejected incomplete structured output. Using the one text-repair allowance to request a complete article; existing provider limits still apply.",
+            },
+          });
+          generated = await this.ai.generate(
+            { task: "draft", articleId: a.id, niche: a.niche },
+            a.version,
+            "The provider rejected the previous response because required article fields were missing. Return the COMPLETE JSON object, including html with the full article body, title, excerpt, outline, labels, imageSearchTerms, uncertainties and topics: []. Do not return a partial patch. Use only the supplied references and keep unresolved claims in uncertainties. This is the only automatic repair attempt.",
+          );
+        }
         a = await this.articles.get(a.id);
         const words = sanitizeHtml(a.html, {
           allowedTags: [],
@@ -873,20 +943,27 @@ export class EditorialService {
         })
           .split(/\s+/)
           .filter(Boolean).length;
-        if (policy.autoPublish && words < AUTOMATIC_MIN_WORDS) {
+        const uncertain =
+          !Array.isArray(generated.data.uncertainties) ||
+          generated.data.uncertainties.length > 0;
+        if (
+          policy.autoPublish &&
+          !textRepairUsed &&
+          (words < AUTOMATIC_MIN_WORDS || uncertain)
+        ) {
           await this.active(run);
           await this.db.editorialRun.update({
             where: { id: run.id },
             data: {
               stage: "TEXT_REPAIR",
               articleVersion: a.version,
-              message: `Draft has ${words} words; attempting one source-backed expansion within the existing daily provider limits.`,
+              message: `Draft has ${words} words${uncertain ? " and unresolved claims" : ""}; attempting one source-backed correction within the existing daily provider limits.`,
             },
           });
           generated = await this.ai.generate(
             { task: "draft", articleId: a.id, niche: a.niche },
             a.version,
-            `The prior draft contained ${words} words and failed the ${AUTOMATIC_MIN_WORDS}-word minimum. Write a complete 550-800 word article grounded in the supplied references, with prerequisites, supported examples, limitations and restoration checks when relevant. Do not pad, invent results, or hide unresolved claims. This is the only automatic length-repair attempt.`,
+            `Repair the supplied previous draft using only the fetched references. It has ${words} words (minimum ${AUTOMATIC_MIN_WORDS}). Resolve its explicit uncertainties by removing unsupported claims or replacing them with documented, narrower explanations. Do not simply clear the uncertainty list. Clearly label illustrative examples, omit invented output and OS/version differences not in the references, and state documented caveats in the article. If the references cannot resolve a claim, keep it in uncertainties. Aim for 550-800 useful words without padding. This is the only automatic text-repair attempt.`,
           );
           a = await this.articles.get(a.id);
         }
@@ -1025,8 +1102,14 @@ export class EditorialService {
             stage: "READY",
             articleVersion: a.version,
             finishedAt: new Date(),
-            message:
-              "Photo and attribution are attached. The model flagged unresolved claims or unverified examples; review is required before approval or scheduling.",
+            message: `Photo and attribution are attached, but automatic source repair did not resolve: ${
+              Array.isArray(generation.uncertainties)
+                ? generation.uncertainties
+                    .filter((v): v is string => typeof v === "string")
+                    .join(" ")
+                    .slice(0, 650)
+                : "Missing uncertainty assessment."
+            } This run was not scheduled.`,
           },
         });
         return;
