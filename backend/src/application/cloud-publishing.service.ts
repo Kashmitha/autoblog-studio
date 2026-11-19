@@ -6,6 +6,7 @@ import {
 import { randomBytes } from "node:crypto";
 import { DateTime } from "luxon";
 import { PrismaService } from "../infrastructure/prisma.service";
+import { withDatabaseLock } from "../infrastructure/database-lock";
 import {
   GoogleService,
   GoogleReconnectRequiredException,
@@ -32,13 +33,10 @@ export class CloudPublishingService {
   private locked<T>(work: () => Promise<T>) {
     // Share the publication lock with the local worker. Remote intent writes are
     // committed separately, so a crash cannot erase evidence of an attempted write.
-    return this.db.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
-        return work();
-      },
-      { timeout: 180000, maxWait: 180000 },
-    );
+    return withDatabaseLock(this.db, 8172142, async () => work(), {
+      timeout: 180000,
+      maxWait: 180000,
+    });
   }
   private async integration(requirePublishingCheckpoint = true) {
     if (env.bloggerMode !== "live")
