@@ -31,3 +31,12 @@ Enrollment extracts descriptive subject tags from saved title and alt text. Iden
 Automatic drafts use one shared 450-word minimum in their saved quality report and publishing gate. Generation asks for 550-800 useful words. One successful but short generation may receive a single source-backed expansion request under the same provider daily/spending limits; provider errors and ambiguous writes are not blindly replayed. If the second response remains incomplete, checks stop it with an explicit reason. Genuine unresolved claims still stop publication.
 
 An owner-authorized corrected local draft with one attached image may resume through POST /api/editorial/runs/:id/resume-prepared with its current article version. Quality and uncertainty checks must pass under the unchanged policy and blog. The existing image is kept, text is not regenerated, and an expired slot moves to the next configured future slot rather than backdating. Approval remains AUTOMATIC_POLICY, never a claim of human editorial review.
+
+
+## Automatic source repair and existing schedules
+
+Source excerpts now select relevant sections from long references instead of using only the opening text. Curl header/redirect briefs include the documented option sections. An automatic draft that is too short or contains unresolved claims gets at most one combined correction attempt, within the existing daily and monthly provider limits. The correction must remove unsupported claims or replace them with documented explanations; remaining uncertainty still stops scheduling. Text retries are never replayed after an ambiguous Blogger write.
+
+Before preparing a new slot, Studio checks publication reservations for that Sri Lanka date. An existing Blogger schedule that fills the daily limit prevents another model call and duplicate preparation. Changing the workflow time does not move an already accepted Blogger schedule.
+
+Run history reflects the confirmed article status after manual Blogger scheduling or publication, while retaining the original preparation slot. Its message shows the actual publication date/time so a resolved run is not left displaying an old review stop.

@@ -116,7 +116,10 @@ export class AiService {
         research.push({
           url: source.url,
           supports: source.note,
-          text: referenceExcerpt(r.body),
+          text: referenceExcerpt(
+            r.body,
+            [a.title, a.niche, a.intent, source.note].join(" "),
+          ),
         });
       }
     }
@@ -129,12 +132,23 @@ export class AiService {
       instructions:
         dto.task === "topics"
           ? "Propose five specific nonduplicative tutorials. Do not claim verified search demand; leave draft fields empty."
-          : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Identify unverified code or claims in uncertainties. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
+          : "Create an original, useful draft for this specific reader problem. Suggest a concise, concrete title faithful to the brief; vary title structure according to the problem rather than forcing lists or sensational promises. Cite the supplied source URLs, include a structured outline, excerpt, labels, relevant existing internal links, real-photo search terms and an explicit uncertainty list. Lead with the actual answer, explain prerequisites and limitations, and use supported examples. Do not fabricate experience, test results, output, benchmark figures or facts. Record genuinely unsupported code or claims in uncertainties. Documented examples may be labelled illustrative without claiming they were executed. Omit invented HTTP output, dates and platform differences that are absent from the supplied references. Never include image tags, synthetic-image requests, provider instructions or public AI-provenance footers in HTML. Avoid filler, repeated conclusions, stock introductions and unsupported first-person statements.",
       research,
       repairFeedback: repairFeedback?.slice(0, 1000),
+      previousDraft:
+        repairFeedback && a
+          ? {
+              title: (a.generation as { title?: string } | null)?.title,
+              excerpt: a.excerpt,
+              html: a.html.slice(0, 6000),
+              uncertainties: (
+                a.generation as { uncertainties?: unknown } | null
+              )?.uncertainties,
+            }
+          : undefined,
       draftLength:
         dto.task === "draft"
-          ? `Write 550-800 useful words, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Verify container lifecycle wording: stopping a container does not remove its writable layer. Avoid unsupported host storage paths or third-party recommendations.`
+          ? `Write 550-800 useful words, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Omit unsupported host paths, outputs, platform/version differences or third-party recommendations. Keep genuine missing evidence in uncertainties.`
           : undefined,
     });
     if (Buffer.byteLength(prompt) > 32000)
