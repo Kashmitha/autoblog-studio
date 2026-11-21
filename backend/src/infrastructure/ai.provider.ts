@@ -53,6 +53,7 @@ export abstract class AiProvider {
     model: string,
   ): Promise<GenerationResult>;
 }
+export class ProviderRateLimitError extends Error {}
 function validateDraft(data: unknown): Record<string, unknown> {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new Error("Groq returned invalid editorial data.");
@@ -88,40 +89,63 @@ export class GroqProvider extends AiProvider {
     if (!process.env.GROQ_API_KEY?.trim())
       throw new Error("Configure GROQ_API_KEY privately before generation.");
     let response: Response;
-    try {
-      response = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: editorialInstructions },
-              { role: "user", content: prompt },
-            ],
-            max_completion_tokens: maxTokens,
-            reasoning_effort: "low",
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "editorial_draft",
-                strict: true,
-                schema: editorialSchema,
-              },
+    let retries = 0;
+    let waitedMs = 0;
+    do {
+      try {
+        response = await fetch(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+              "Content-Type": "application/json",
             },
-          }),
-          signal: AbortSignal.timeout(90000),
-        },
-      );
-    } catch {
-      throw new Error(
-        "Groq request timed out or could not connect. Check provider status and saved usage before retrying; no automatic retry was sent.",
-      );
-    }
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: editorialInstructions },
+                { role: "user", content: prompt },
+              ],
+              max_completion_tokens: maxTokens,
+              reasoning_effort: "low",
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "editorial_draft",
+                  strict: true,
+                  schema: editorialSchema,
+                },
+              },
+            }),
+            signal: AbortSignal.timeout(90000),
+          },
+        );
+      } catch {
+        throw new Error(
+          "Groq request timed out or could not connect. Check provider status and saved usage before retrying; no automatic retry was sent.",
+        );
+      }
+      // A 429 is a definitive rejection, not an ambiguous completion. Only replay
+      // these rejections, respect the server's delay, and bound the total wait.
+      if (response.status !== 429) break;
+      const header = response.headers.get("retry-after");
+      const seconds = header?.trim() ? Number(header) : NaN;
+      const delay = Math.max(1000, Math.ceil(seconds * 1000) + 250);
+      if (
+        !Number.isFinite(seconds) ||
+        seconds < 0 ||
+        retries >= 2 ||
+        waitedMs + delay > 125000
+      )
+        throw new ProviderRateLimitError(
+          "Groq rate or token quota reached. Bounded rate-limit recovery could not complete. No paid fallback was used.",
+        );
+      await response.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      waitedMs += delay;
+      retries++;
+    } while (true);
     if (!response.ok) {
       if (response.status === 400) {
         const detail = (await response.json().catch(() => null)) as {
@@ -132,10 +156,6 @@ export class GroqProvider extends AiProvider {
             "Groq structured output validation failed (json_validate_failed). The provider did not return all required article fields, including html. No article was accepted and no fallback request was sent.",
           );
       }
-      if (response.status === 429)
-        throw new Error(
-          "Groq rate or token quota reached. Wait for your account limits to reset, then prepare a future slot. No paid fallback or automatic retry was sent.",
-        );
       if ([401, 403].includes(response.status))
         throw new Error(
           "Groq rejected access. Check your private API key and model permissions in Groq Console.",
