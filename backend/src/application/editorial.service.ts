@@ -937,6 +937,59 @@ export class EditorialService {
           );
         }
         a = await this.articles.get(a.id);
+        // Save completed preparation before an optional correction can fail.
+        // The pinned library image is already selected for this source-backed
+        // brief; attaching it is not approval or permission to publish.
+        const existingTitles = (
+          await this.db.article.findMany({
+            where: { id: { not: a.id } },
+            select: { title: true },
+          })
+        ).map((row) => row.title);
+        if (!acceptableTitle(generated.data.title, existingTitles))
+          throw new BadRequestException(
+            "Generated title is invalid or overlaps an existing topic. Review this draft.",
+          );
+        await this.articles.update(a.id, {
+          title: (generated.data.title as string).trim(),
+          niche: a.niche,
+          intent: a.intent,
+          excerpt: a.excerpt,
+          html: safeHtml(a.html, false),
+          labels: a.labels,
+          aiAssisted: true,
+          disclosure: false,
+          version: a.version,
+        });
+        a = await this.articles.get(a.id);
+        const pinnedImage = Array.isArray(run.candidates)
+          ? run.candidates.find(
+              (candidate) =>
+                candidate &&
+                typeof candidate === "object" &&
+                !Array.isArray(candidate) &&
+                typeof candidate.mediaId === "string",
+            )
+          : null;
+        if (
+          !a.media.length &&
+          pinnedImage &&
+          typeof pinnedImage === "object" &&
+          !Array.isArray(pinnedImage) &&
+          typeof pinnedImage.mediaId === "string"
+        ) {
+          await this.active(run);
+          await this.articles.attachAutomaticPhoto(
+            a.id,
+            pinnedImage.mediaId,
+            a.version,
+          );
+          a = await this.articles.get(a.id);
+        }
+        await this.db.editorialRun.update({
+          where: { id: run.id },
+          data: { articleVersion: a.version },
+        });
         const words = sanitizeHtml(a.html, {
           allowedTags: [],
           allowedAttributes: {},

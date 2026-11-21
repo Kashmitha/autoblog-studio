@@ -712,6 +712,40 @@ test("empty image-led library stops before any text-generation call", async () =
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
 });
 
+test("image-led preparation preserves the generated title and pinned image when correction is rate limited", async () => {
+  const image = await pool();
+  const generate = jest
+    .mocked(app.get(AiService).generate)
+    .getMockImplementation()!;
+  jest
+    .spyOn(app.get(AiService), "generate")
+    .mockImplementation(async (dto, version, feedback) => {
+      if (generated)
+        throw new BadRequestException("Groq rate or token quota reached.");
+      uncertain = true;
+      return generate(dto, version, feedback);
+    });
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow({
+    include: { article: { include: { media: true } } },
+  });
+  expect(run.state).toBe("NEEDS_REVIEW");
+  expect(run.stage).toBe("TEXT_REPAIR");
+  expect(run.article?.title).toBe("Find the files touched by a single commit");
+  expect(run.article?.media.map((item) => item.mediaId)).toEqual([image.id]);
+  expect(run.articleVersion).toBe(run.article?.version);
+  expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
+});
+
 test("owner can enroll manually imported Unsplash images and used assets remain unavailable", async () => {
   const image = await pool();
   await db.mediaAsset.update({

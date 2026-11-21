@@ -2,6 +2,7 @@ import { aiConfiguration } from "../src/domain/ai-config";
 import {
   ConfiguredAiProvider,
   GroqProvider,
+  ProviderRateLimitError,
 } from "../src/infrastructure/ai.provider";
 import { AiService } from "../src/application/ai.service";
 import type { PrismaService } from "../src/infrastructure/prisma.service";
@@ -54,11 +55,87 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  jest.useRealTimers();
   jest.restoreAllMocks();
   for (const k of keys) {
     if (old[k] === undefined) delete process.env[k];
     else process.env[k] = old[k];
   }
+});
+
+test("explicit short 429 rejections respect retry-after and recover without a paid fallback", async () => {
+  jest.useFakeTimers();
+  const fetch = jest
+    .spyOn(global, "fetch")
+    .mockResolvedValueOnce(
+      new Response("limited", { status: 429, headers: { "retry-after": "1" } }),
+    )
+    .mockResolvedValueOnce(success());
+  const pending = new GroqProvider().generate(
+    "fixture",
+    3000,
+    "openai/gpt-oss-20b",
+  );
+  await jest.advanceTimersByTimeAsync(1249);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  await jest.advanceTimersByTimeAsync(1);
+  await expect(pending).resolves.toMatchObject({ data });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+test("rate recovery is bounded and does not retry a daily quota delay", async () => {
+  const fetch = jest.spyOn(global, "fetch").mockResolvedValue(
+    new Response("limited", {
+      status: 429,
+      headers: { "retry-after": "3600" },
+    }),
+  );
+  await expect(
+    new GroqProvider().generate("fixture", 3000, "openai/gpt-oss-20b"),
+  ).rejects.toBeInstanceOf(ProviderRateLimitError);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test("free draft budget is smaller and explicit rejections do not consume a completion allowance", async () => {
+  const usage = { id: "usage", state: "RESERVED" };
+  const update = jest.fn(async (input) => Object.assign(usage, input.data));
+  const transaction = jest.fn();
+  const db = {
+    article: { findMany: jest.fn().mockResolvedValue([]) },
+    aiUsage: {
+      findMany: jest.fn().mockResolvedValue([
+        { state: "RATE_LIMITED", costUsd: 0, createdAt: new Date() },
+        { state: "COMPLETED", costUsd: 0, createdAt: new Date() },
+      ]),
+      create: jest.fn().mockResolvedValue(usage),
+      update,
+      findUniqueOrThrow: jest.fn(async () => usage),
+    },
+    $executeRaw: jest.fn(),
+    $transaction: transaction,
+  };
+  transaction.mockImplementation(async (work) => work(db));
+  const generate = jest
+    .fn()
+    .mockRejectedValue(new ProviderRateLimitError("limited"));
+  const service = new AiService(
+    db as unknown as PrismaService,
+    {} as ArticlesService,
+    { generate },
+  );
+  await expect(
+    service.generate({ task: "topics", niche: "Git" }),
+  ).rejects.toThrow("limited");
+  expect(generate).toHaveBeenCalledWith(
+    expect.any(String),
+    3000,
+    "openai/gpt-oss-20b",
+  );
+  expect(update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({ state: "RATE_LIMITED", costUsd: 0 }),
+    }),
+  );
 });
 test("Groq declared Free mode needs no paid authorization or price fiction", () => {
   expect(aiConfiguration()).toMatchObject({
@@ -194,20 +271,18 @@ test("key test reads model access without a generation request or billing claim"
 });
 
 test("schema rejection is classified without exposing failed draft text or replaying a request", async () => {
-  const fetch = jest
-    .spyOn(global, "fetch")
-    .mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: {
-            code: "json_validate_failed",
-            message: "private details",
-            failed_generation: "private draft",
-          },
-        }),
-        { status: 400 },
-      ),
-    );
+  const fetch = jest.spyOn(global, "fetch").mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        error: {
+          code: "json_validate_failed",
+          message: "private details",
+          failed_generation: "private draft",
+        },
+      }),
+      { status: 400 },
+    ),
+  );
   await expect(
     new GroqProvider().generate("fixture", 4000, "openai/gpt-oss-20b"),
   ).rejects.toThrow("(json_validate_failed)");
