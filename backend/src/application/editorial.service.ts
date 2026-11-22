@@ -706,6 +706,53 @@ export class EditorialService {
       })) < aiConfiguration().dailyLimit
     );
   }
+  private async recordCorrection(run: EditorialRun) {
+    const attempts = await this.db.auditLog.count({
+      where: { action: "EDITORIAL_TEXT_CORRECTION", entityId: run.id },
+    });
+    if (attempts >= 3)
+      throw new BadRequestException(
+        "The three bounded source-backed corrections did not produce a publishable article.",
+      );
+    await this.db.auditLog.create({
+      data: {
+        action: "EDITORIAL_TEXT_CORRECTION",
+        entityId: run.id,
+        message: `Source-backed correction ${attempts + 1}/3; existing daily provider and spending limits still apply.`,
+      },
+    });
+  }
+  private async deferCorrection(
+    run: EditorialRun,
+    version: number,
+    reason: string,
+  ) {
+    const policy = await this.active(run);
+    if (
+      !policy.autoPublish ||
+      !policy.autoPlan ||
+      policy.times.length !== 1 ||
+      run.slotAt.getTime() <= Date.now() + 10 * 60000
+    )
+      return false;
+    if (
+      (await this.db.auditLog.count({
+        where: { action: "EDITORIAL_TEXT_CORRECTION", entityId: run.id },
+      })) >= 3
+    )
+      return false;
+    await this.db.editorialRun.update({
+      where: { id: run.id },
+      data: {
+        state: "WAITING_AI",
+        stage: "TEXT_REPAIR",
+        articleVersion: version,
+        finishedAt: new Date(),
+        message: `Automatic source-backed correction is waiting for allowance and backoff: ${reason.slice(0, 450)} No approval is required while recovery is pending; no unverified claim will be published.`,
+      },
+    });
+    return true;
+  }
   /** Resume only explicitly rejected/pre-request work, never ambiguous remote writes. */
   private async recoverPreparation() {
     const c = await this.context();
@@ -1063,6 +1110,7 @@ export class EditorialService {
       if (!run.articleId || ["TEXT", "TEXT_REPAIR"].includes(run.stage)) {
         await this.active(run);
         let textRepairUsed = run.stage === "TEXT_REPAIR";
+        if (textRepairUsed) await this.recordCorrection(run);
         let generated: Awaited<ReturnType<AiService["generate"]>>;
         try {
           generated = await this.ai.generate(
@@ -1081,6 +1129,7 @@ export class EditorialService {
             throw error;
           await this.active(run);
           textRepairUsed = true;
+          await this.recordCorrection(run);
           await this.db.editorialRun.update({
             where: { id: run.id },
             data: {
@@ -1173,6 +1222,7 @@ export class EditorialService {
               message: `Draft has ${words} words${uncertain ? " and unresolved claims" : ""}; attempting one source-backed correction within the existing daily provider limits.`,
             },
           });
+          await this.recordCorrection(run);
           generated = await this.ai.generate(
             { task: "draft", articleId: a.id, niche: a.niche },
             a.version,
@@ -1304,7 +1354,19 @@ export class EditorialService {
       if (
         !report.passed ||
         issues.some((issue) => issue.code !== "EDITORIAL_REVIEW")
-      )
+      ) {
+        if (
+          issues.some((issue) => issue.code === "THIN_CONTENT") &&
+          issues.every((issue) =>
+            ["THIN_CONTENT", "EDITORIAL_REVIEW"].includes(issue.code),
+          ) &&
+          (await this.deferCorrection(
+            run,
+            a.version,
+            "Expand the saved incomplete draft with supported explanation, not filler.",
+          ))
+        )
+          return;
         throw new BadRequestException(
           `Quality checks stopped this run: ${(
             report.issues as unknown as { code: string; message: string }[]
@@ -1313,10 +1375,19 @@ export class EditorialService {
             .map((i) => i.message)
             .join(" ")}`,
         );
+      }
       if (
         !Array.isArray(generation.uncertainties) ||
         generation.uncertainties.length
       ) {
+        if (
+          await this.deferCorrection(
+            run,
+            a.version,
+            "Remove or substantiate the saved unresolved claims; do not merely clear uncertainties.",
+          )
+        )
+          return;
         await this.db.editorialRun.update({
           where: { id: run.id },
           data: {

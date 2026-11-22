@@ -834,6 +834,37 @@ test("a source recheck outage resumes the saved source stage without another gen
   expect(generated).toBe(1);
 });
 
+test("the one-post policy automatically retries unresolved drafts with a hard correction bound", async () => {
+  await pool();
+  uncertain = true;
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  await service.queue();
+  await service.tick();
+  let run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("WAITING_AI");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await db.editorialRun.update({
+      where: { id: run.id },
+      data: { finishedAt: new Date(Date.now() - 61 * 60000) },
+    });
+    await service.tick();
+    run = await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } });
+  }
+  expect(run.state).toBe("NEEDS_REVIEW");
+  expect(generated).toBe(4); // One draft and at most three corrections.
+  await service.tick();
+  expect(generated).toBe(4);
+  expect(await db.articleMedia.count()).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
+});
+
 test("image-led preparation preserves the generated title and pinned image when correction is rate limited", async () => {
   const image = await pool();
   const generate = jest
