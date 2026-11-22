@@ -494,6 +494,21 @@ export class EditorialService {
       c.settings.autoPublish &&
       c.settings.autoPlan &&
       c.settings.times.length === 1;
+    if (
+      ahead &&
+      !manual &&
+      (await this.db.editorialRun.findFirst({
+        where: {
+          state: { in: ["WAITING_AI", "WAITING_SOURCE"] },
+          policyRevision: c.settings.revision,
+          slotAt: { gt: new Date(Date.now() + 5 * 60000) },
+        },
+      }))
+    )
+      return {
+        queued: false,
+        note: "An earlier saved preparation is recovering. Its correction allowance takes priority over another future draft.",
+      };
     if (ahead && !manual && !(await this.hasTextAllowance()))
       return {
         queued: false,
@@ -707,10 +722,16 @@ export class EditorialService {
     );
   }
   private async recordCorrection(run: EditorialRun) {
+    if (!(await this.hasTextAllowance()))
+      throw new BadRequestException("Daily AI generation limit reached.");
+    const articleId =
+      run.articleId ||
+      (await this.db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .articleId;
     const attempts = await this.db.auditLog.count({
-      where: { action: "EDITORIAL_TEXT_CORRECTION", entityId: run.id },
+      where: { action: "AI_DRAFT_CREATED", entityId: articleId },
     });
-    if (attempts >= 3)
+    if (attempts >= 4)
       throw new BadRequestException(
         "The three bounded source-backed corrections did not produce a publishable article.",
       );
@@ -718,7 +739,7 @@ export class EditorialService {
       data: {
         action: "EDITORIAL_TEXT_CORRECTION",
         entityId: run.id,
-        message: `Source-backed correction ${attempts + 1}/3; existing daily provider and spending limits still apply.`,
+        message: `Source-backed correction after ${attempts} accepted draft(s); existing daily provider and spending limits still apply.`,
       },
     });
   }
@@ -728,6 +749,10 @@ export class EditorialService {
     reason: string,
   ) {
     const policy = await this.active(run);
+    const articleId =
+      run.articleId ||
+      (await this.db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .articleId;
     if (
       !policy.autoPublish ||
       !policy.autoPlan ||
@@ -737,8 +762,8 @@ export class EditorialService {
       return false;
     if (
       (await this.db.auditLog.count({
-        where: { action: "EDITORIAL_TEXT_CORRECTION", entityId: run.id },
-      })) >= 3
+        where: { action: "AI_DRAFT_CREATED", entityId: articleId },
+      })) >= 4
     )
       return false;
     await this.db.editorialRun.update({

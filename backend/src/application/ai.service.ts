@@ -169,7 +169,7 @@ export class AiService {
           : undefined,
       draftLength:
         dto.task === "draft"
-          ? `Write 550-800 useful words, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Omit unsupported host paths, outputs, platform/version differences or third-party recommendations. Keep genuine missing evidence in uncertainties.`
+          ? `Write 650-850 useful prose words excluding code, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Omit unsupported host paths, outputs, platform/version differences or third-party recommendations. Keep genuine missing evidence in uncertainties.`
           : undefined,
     });
     if (Buffer.byteLength(prompt) > 32000)

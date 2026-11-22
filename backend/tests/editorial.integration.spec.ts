@@ -198,6 +198,13 @@ beforeEach(async () => {
           generation: data,
         },
       });
+      await db.auditLog.create({
+        data: {
+          action: "AI_DRAFT_CREATED",
+          entityId: article.id,
+          message: "Accepted isolated generated fixture.",
+        },
+      });
       return { articleId: article.id, data, costUsd: 0 };
     });
   jest
@@ -853,6 +860,10 @@ test("the one-post policy automatically retries unresolved drafts with a hard co
   await service.tick();
   let run = await db.editorialRun.findFirstOrThrow();
   expect(run.state).toBe("WAITING_AI");
+  const next = await service.queue(false);
+  expect(next.queued).toBe(false);
+  expect(next.note).toContain("takes priority");
+  expect(await db.editorialRun.count()).toBe(1);
   for (let attempt = 0; attempt < 2; attempt++) {
     await db.editorialRun.update({
       where: { id: run.id },
