@@ -76,6 +76,12 @@ test("automatic slots prepare only imminent future Sri Lanka times and do not bu
       .key,
   ).toBe("2026-11-14:09:00");
 });
+test("the single daily automatic workflow can prepare tomorrow without backdating a missed slot", () => {
+  const late = new Date("2026-11-13T10:00Z");
+  expect(editorialSlots(["09:15"], late, false, true)).toEqual([
+    { key: "2026-11-14:09:15", at: new Date("2026-11-14T03:45Z") },
+  ]);
+});
 test("natural title checks reject duplicate topics, markup and invalid lengths", () => {
   expect(
     acceptableTitle("Why staged changes disappear from a normal diff", [

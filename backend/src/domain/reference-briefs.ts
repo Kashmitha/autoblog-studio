@@ -85,8 +85,8 @@ export const referenceBriefs: ReferenceBrief[] = [
     intent:
       "Explain a read-only SQL database MySQL SELECT query with column selection, WHERE filtering and ORDER BY. Keep examples illustrative; no destructive commands or invented benchmark results.",
     sources: [
-      "https://dev.mysql.com/doc/refman/8.4/en/select.html",
-      "https://dev.mysql.com/doc/refman/8.4/en/selecting-all.html",
+      "https://docs.oracle.com/cd/E17952_01/mysql-8.4-en/select.html",
+      "https://docs.oracle.com/cd/E17952_01/mysql-8.4-en/selecting-all.html",
     ],
   },
   {

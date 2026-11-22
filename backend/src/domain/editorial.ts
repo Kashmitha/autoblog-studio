@@ -9,9 +9,10 @@ export function editorialSlots(
   times: string[],
   now = new Date(),
   manual = false,
+  ahead = false,
 ) {
   const local = DateTime.fromJSDate(now).setZone("Asia/Colombo");
-  const dates = manual ? [local, local.plus({ days: 1 })] : [local];
+  const dates = manual || ahead ? [local, local.plus({ days: 1 })] : [local];
   return dates
     .flatMap((day) =>
       times.map((time) => {
@@ -24,7 +25,7 @@ export function editorialSlots(
       manual
         ? slot.at.getTime() >= now.getTime() + 10 * 60000
         : slot.at.getTime() >= now.getTime() + 5 * 60000 &&
-          slot.at.getTime() <= now.getTime() + 30 * 60000,
+          slot.at.getTime() <= now.getTime() + (ahead ? 24 * 60 : 30) * 60000,
     )
     .sort((a, b) => a.at.getTime() - b.at.getTime());
 }

@@ -16,6 +16,7 @@ import {
   PHOTO_CONFIRMATION,
 } from "../src/domain/editorial";
 import { referenceBriefs } from "../src/domain/reference-briefs";
+import * as research from "../src/infrastructure/research-source";
 
 let app: INestApplication,
   db: PrismaService,
@@ -75,6 +76,14 @@ async function cleanup() {
 }
 beforeEach(async () => {
   jest.restoreAllMocks();
+  jest
+    .spyOn(research, "readResearchSource")
+    .mockImplementation(async (url) => ({
+      status: 200,
+      body: "Isolated official reference ".repeat(20),
+      sourceUrl: url,
+      checkedAt: new Date(),
+    }));
   await cleanup();
   generated = 0;
   uncertain = false;
@@ -712,6 +721,119 @@ test("empty image-led library stops before any text-generation call", async () =
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
 });
 
+test("unavailable source packs wait and recover automatically before any text call", async () => {
+  await pool();
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  jest
+    .mocked(research.readResearchSource)
+    .mockRejectedValue(
+      new research.ResearchSourceUnavailable("Source temporarily unavailable"),
+    );
+  await service.queue();
+  await service.tick();
+  let run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("WAITING_SOURCE");
+  expect(generated).toBe(0);
+  expect(run.articleId).toBeNull();
+  jest.mocked(research.readResearchSource).mockImplementation(async (url) => ({
+    status: 200,
+    body: "Official fixture ".repeat(20),
+    sourceUrl: url,
+    checkedAt: new Date(),
+  }));
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { finishedAt: new Date(Date.now() - 6 * 60000) },
+  });
+  await service.tick();
+  run = await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } });
+  expect(run.state).toBe("SCHEDULED");
+  expect(generated).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test("daily text allowance waits resume only the saved correction and keep its image", async () => {
+  const image = await pool();
+  await service.save({
+    enabled: true,
+    autoPublish: true,
+    autoPlan: true,
+    times: ["09:00"],
+    revision: 0,
+    confirmation: EDITORIAL_PUBLISH,
+  });
+  const generate = jest
+    .mocked(app.get(AiService).generate)
+    .getMockImplementation()!;
+  let rejected = false;
+  jest
+    .spyOn(app.get(AiService), "generate")
+    .mockImplementation(async (dto, version, feedback) => {
+      if (generated === 1 && !rejected) {
+        rejected = true;
+        throw new BadRequestException("Daily AI generation limit reached.");
+      }
+      uncertain = generated === 0;
+      return generate(dto, version, feedback);
+    });
+  await service.queue();
+  await service.tick();
+  let run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("WAITING_AI");
+  expect(run.stage).toBe("TEXT_REPAIR");
+  expect(await db.articleMedia.count({ where: { mediaId: image.id } })).toBe(1);
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { finishedAt: new Date(Date.now() - 6 * 60000) },
+  });
+  await service.tick();
+  run = await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } });
+  expect(run.state).toBe("SCHEDULED");
+  expect(generated).toBe(2);
+  expect(await db.articleMedia.count()).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test("a source recheck outage resumes the saved source stage without another generation", async () => {
+  await pool();
+  await enable(true);
+  const verify = jest
+    .mocked(app.get(ArticlesService).verifySources)
+    .getMockImplementation()!;
+  jest
+    .spyOn(app.get(ArticlesService), "verifySources")
+    .mockImplementationOnce(async (id) => {
+      const result = await verify(id);
+      await db.source.updateMany({
+        where: { articleId: id },
+        data: { httpStatus: 503 },
+      });
+      return result;
+    });
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("WAITING_SOURCE");
+  expect(run.stage).toBe("SOURCES");
+  expect(generated).toBe(1);
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { finishedAt: new Date(Date.now() - 6 * 60000) },
+  });
+  await service.tick();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("SCHEDULED");
+  expect(generated).toBe(1);
+});
+
 test("image-led preparation preserves the generated title and pinned image when correction is rate limited", async () => {
   const image = await pool();
   const generate = jest
@@ -738,7 +860,7 @@ test("image-led preparation preserves the generated title and pinned image when 
   const run = await db.editorialRun.findFirstOrThrow({
     include: { article: { include: { media: true } } },
   });
-  expect(run.state).toBe("NEEDS_REVIEW");
+  expect(run.state).toBe("WAITING_AI");
   expect(run.stage).toBe("TEXT_REPAIR");
   expect(run.article?.title).toBe("Find the files touched by a single commit");
   expect(run.article?.media.map((item) => item.mediaId)).toEqual([image.id]);

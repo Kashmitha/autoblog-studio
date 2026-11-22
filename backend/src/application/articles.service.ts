@@ -7,10 +7,10 @@ import {
 import { ArticleStatus, Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../infrastructure/prisma.service";
+import { readResearchSource } from "../infrastructure/research-source";
 import { ArticleDto, SourceDto } from "../api/dtos";
 import { safeHtml, checkQuality } from "../domain/quality";
 import { assertTransition } from "../domain/workflow";
-import { publicGet } from "../infrastructure/public-http";
 import { AUTOMATIC_MIN_WORDS, photoPolicy } from "../domain/editorial";
 import { previousPhotoUse } from "../domain/photo-preparation";
 export const articleInclude = {
@@ -168,11 +168,21 @@ export class ArticlesService {
   }
   async verifySources(id: string) {
     const a = await this.get(id);
-    const checked: { id: string; httpStatus: number }[] = [];
+    const checked: {
+      id: string;
+      httpStatus: number;
+      url?: string;
+      checkedAt?: Date;
+    }[] = [];
     for (const s of a.sources) {
       try {
-        const r = await publicGet(s.url);
-        checked.push({ id: s.id, httpStatus: r.status });
+        const r = await readResearchSource(s.url);
+        checked.push({
+          id: s.id,
+          httpStatus: r.status,
+          url: r.sourceUrl,
+          checkedAt: r.checkedAt,
+        });
       } catch {
         checked.push({ id: s.id, httpStatus: 0 });
       }
@@ -183,7 +193,11 @@ export class ArticlesService {
         for (const s of checked)
           await tx.source.update({
             where: { id: s.id },
-            data: { checkedAt: new Date(), httpStatus: s.httpStatus },
+            data: {
+              ...(s.url ? { url: s.url } : {}),
+              checkedAt: s.checkedAt || new Date(),
+              httpStatus: s.httpStatus,
+            },
           });
       },
       a.version,

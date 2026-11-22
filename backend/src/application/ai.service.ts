@@ -7,7 +7,7 @@ import {
   ProviderRateLimitError,
 } from "../infrastructure/ai.provider";
 import { ArticlesService } from "./articles.service";
-import { publicGet } from "../infrastructure/public-http";
+import { readResearchSource } from "../infrastructure/research-source";
 import { AUTOMATIC_MIN_WORDS } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
@@ -115,13 +115,9 @@ export class AiService {
           "Add sources and record the claims each supports.",
         );
       for (const source of a.sources.slice(0, 4)) {
-        const r = await publicGet(source.url);
-        if (r.status !== 200)
-          throw new BadRequestException(
-            `Research source unavailable: ${source.url}`,
-          );
+        const r = await readResearchSource(source.url);
         research.push({
-          url: source.url,
+          url: r.sourceUrl,
           supports: source.note,
           text: referenceExcerpt(
             r.body,
