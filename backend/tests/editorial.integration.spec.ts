@@ -780,6 +780,10 @@ test("daily text allowance waits resume only the saved correction and keep its i
         rejected = true;
         throw new BadRequestException("Daily AI generation limit reached.");
       }
+      if (generated === 1 && rejected) {
+        expect(feedback).toContain("currently has");
+        expect(feedback).toContain("650-850 useful words");
+      }
       uncertain = generated === 0;
       return generate(dto, version, feedback);
     });

@@ -1117,7 +1117,7 @@ export class EditorialService {
             { task: "draft", articleId: a.id, niche: a.niche },
             a.version,
             textRepairUsed
-              ? "Repair the supplied saved draft using only the fetched references. Remove unsupported claims or replace them with documented narrower explanations. Do not simply clear uncertainties. Label illustrative examples, omit invented output and unsupported platform differences. Keep genuinely unresolved factual claims in uncertainties. Return a complete replacement article of 550-800 words. This resumes the single correction allowance after a pre-request limit or explicit rejection."
+              ? `Correct the saved draft against the fetched references. It currently has ${sanitizeHtml(a.html, { allowedTags: [], allowedAttributes: {} }).split(/\s+/).filter(Boolean).length} words; at least ${AUTOMATIC_MIN_WORDS} are required. Produce 650-850 useful words excluding code, with concrete prerequisites, step explanations, result verification and documented caveats. Remove unsupported performance/speed guarantees, invented output and unsupported version claims rather than paraphrasing them. A tutorial not covering an advanced feature is scope, not an unresolved factual assertion. Client-dependent presentation is a caveat if no exact output is asserted. Put these in the article; uncertainties must identify only unsupported claims STILL ASSERTED in the final HTML. Remove such claims when possible; otherwise retain them. Return [] only when none remain. Do not merely clear prior uncertainties. Return the complete replacement JSON and full HTML.`
               : undefined,
           );
         } catch (error) {
