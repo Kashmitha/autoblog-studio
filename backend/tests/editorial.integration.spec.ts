@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import request from "supertest";
-import type { INestApplication } from "@nestjs/common";
+import { BadRequestException, type INestApplication } from "@nestjs/common";
 import { createApp } from "../src/bootstrap";
 import { PrismaService } from "../src/infrastructure/prisma.service";
 import { EditorialService } from "../src/application/editorial.service";
@@ -519,9 +519,8 @@ test.each(["openai", "groq"])(
     ).toBe(2);
   },
 );
-test("uncertainty and uncertain Blogger results never auto-regenerate or replay", async () => {
+test("unresolved uncertainty stops after one bounded repair and does not replay on later ticks", async () => {
   await pool();
-  await pool(1);
   await enable(true);
   uncertain = true;
   await service.queue();
@@ -530,7 +529,13 @@ test("uncertainty and uncertain Blogger results never auto-regenerate or replay"
   expect((await db.editorialRun.findFirstOrThrow()).stage).toBe("READY");
   expect(await db.articleMedia.count()).toBe(1);
   expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
-  uncertain = false;
+  await service.tick();
+  expect(generated).toBe(2);
+});
+
+test("uncertain Blogger results never retry the remote write or regenerate text", async () => {
+  await pool();
+  await enable(true);
   cloudFails = true;
   await service.queue();
   await service.tick();
@@ -538,12 +543,13 @@ test("uncertainty and uncertain Blogger results never auto-regenerate or replay"
     where: { state: "REMOTE_ATTENTION" },
   });
   await service.tick();
-  expect(generated).toBe(2);
+  expect(generated).toBe(1);
   expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
   await expect(service.resume(remote.id)).rejects.toThrow(
     "Only a photo-blocked",
   );
 });
+
 test("pause, changed destination and expired policy prevent generation; starter briefs deduplicate", async () => {
   await enable();
   await service.queue();
@@ -780,7 +786,7 @@ test("automatic quality report and prepared continuation use the same minimum wi
   expect(
     (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
   ).toBe("SCHEDULED");
-  expect(generated).toBe(1);
+  expect(generated).toBe(2);
   expect(
     await db.articleMedia.count({ where: { articleId: article.id } }),
   ).toBe(1);
@@ -805,5 +811,127 @@ test("one short automatic draft gets one bounded expansion and one publication s
   const run = await db.editorialRun.findFirstOrThrow();
   expect(run.state).toBe("SCHEDULED");
   expect(generated).toBe(2);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test("documented-claim repair completes automatically without owner approval or a second photo", async () => {
+  const ai = app.get(AiService),
+    generate = jest.mocked(ai.generate).getMockImplementation()!;
+  jest
+    .spyOn(ai, "generate")
+    .mockImplementation(async (dto, version, feedback) => {
+      uncertain = generated === 0;
+      if (generated === 1) expect(feedback).toContain("Do not simply clear");
+      return generate(dto, version, feedback);
+    });
+  await pool();
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  expect(generated).toBe(2);
+  const run = await db.editorialRun.findFirstOrThrow({
+    include: { article: true },
+  });
+  expect(run.state).toBe("SCHEDULED");
+  expect(run.article?.generation).toMatchObject({
+    uncertainties: [],
+    editorialApproval: { kind: "AUTOMATIC_POLICY" },
+  });
+  expect(await db.articleMedia.count()).toBe(1);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test("a reserved daily Blogger publication prevents wasted generation at a newly chosen time", async () => {
+  await pool();
+  await enable(true);
+  const now = new Date();
+  const article = await db.article.create({
+    data: {
+      title: "An existing reserved publication",
+      slug: "existing-reservation",
+      status: "SCHEDULED",
+    },
+  });
+  await db.automationSettings.update({
+    where: { id: "owner" },
+    data: { dailyLimit: 1 },
+  });
+  await db.publishJob.create({
+    data: {
+      articleId: article.id,
+      key: "existing-reservation",
+      mode: "live",
+      target: "blogger",
+      blogId: "123",
+      state: "REMOTE_SCHEDULED",
+      scheduledAt: now,
+    },
+  });
+  await db.editorialSettings.update({
+    where: { id: "owner" },
+    data: { times: ["09:00"] },
+  });
+  await db.publishJob.create({
+    data: {
+      articleId: article.id,
+      key: "tomorrow-reservation",
+      mode: "live",
+      target: "blogger",
+      blogId: "123",
+      state: "REMOTE_SCHEDULED",
+      scheduledAt: new Date(now.getTime() + 86400000),
+    },
+  });
+  const queued = await service.queue();
+  expect(queued.queued).toBe(false);
+  expect(queued.note).toContain("existing publication");
+  await service.tick();
+  expect(generated).toBe(0);
+  expect(await db.editorialRun.count()).toBe(0);
+});
+
+test("history reports a manually accepted Blogger schedule instead of an old review stop", async () => {
+  await pool();
+  await enable(true);
+  uncertain = true;
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow();
+  await db.article.update({
+    where: { id: run.articleId! },
+    data: {
+      status: "SCHEDULED",
+      publishingTarget: "blogger",
+      remoteStatus: "SCHEDULED",
+      scheduledAt: new Date(Date.now() + 86400000),
+    },
+  });
+  const status = await service.status();
+  expect(status.runs[0].state).toBe("SCHEDULED");
+  expect(status.runs[0].stage).toBe("DONE");
+  expect(status.runs[0].message).toContain("Blogger confirmed");
+});
+
+test("one definitive schema rejection uses the same single repair allowance before automatic scheduling", async () => {
+  const ai = app.get(AiService),
+    generate = jest.mocked(ai.generate).getMockImplementation()!;
+  let calls = 0;
+  jest
+    .spyOn(ai, "generate")
+    .mockImplementation(async (dto, version, feedback) => {
+      calls++;
+      if (calls === 1)
+        throw new BadRequestException(
+          "Groq structured output validation failed (json_validate_failed).",
+        );
+      expect(feedback).toContain("COMPLETE JSON");
+      return generate(dto, version, feedback);
+    });
+  await pool();
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  expect(calls).toBe(2);
+  expect((await db.editorialRun.findFirstOrThrow()).state).toBe("SCHEDULED");
   expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
 });
