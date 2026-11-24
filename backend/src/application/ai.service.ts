@@ -2,7 +2,10 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { DateTime } from "luxon";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../infrastructure/prisma.service";
-import { AiProvider } from "../infrastructure/ai.provider";
+import {
+  AiProvider,
+  ProviderRateLimitError,
+} from "../infrastructure/ai.provider";
 import { ArticlesService } from "./articles.service";
 import { publicGet } from "../infrastructure/public-http";
 import { AUTOMATIC_MIN_WORDS } from "../domain/editorial";
@@ -76,9 +79,13 @@ export class AiService {
       outputRate,
       monthlyLimit: limit,
       dailyLimit,
-      maxTokens,
       model,
     } = config;
+    // Leave room for source excerpts and a previous draft within Groq Free's
+    // per-minute token budget. This is an upper bound, never a budget increase.
+    const maxTokens = config.free
+      ? Math.min(config.maxTokens, 3000)
+      : config.maxTokens;
     const existing = await this.db.article.findMany({
       select: { title: true, publishedUrl: true },
       take: 100,
@@ -128,7 +135,23 @@ export class AiService {
       niche: dto.niche,
       title: a?.title,
       intent: a?.intent,
-      existingTopics: existing,
+      existingTopics: existing.map((topic) => topic.title),
+      internalLinks: existing
+        .filter(
+          (topic) =>
+            topic.publishedUrl &&
+            topic.title
+              .toLowerCase()
+              .split(/\W+/)
+              .some(
+                (word) =>
+                  word.length > 3 &&
+                  `${a?.title || ""} ${a?.niche || ""}`
+                    .toLowerCase()
+                    .includes(word),
+              ),
+        )
+        .slice(0, 5),
       instructions:
         dto.task === "topics"
           ? "Propose five specific nonduplicative tutorials. Do not claim verified search demand; leave draft fields empty."
@@ -175,8 +198,11 @@ export class AiService {
           "Monthly AI spending limit would be exceeded.",
         );
       if (
-        monthly.filter((u) => u.createdAt >= now.startOf("day").toJSDate())
-          .length >= dailyLimit
+        monthly.filter(
+          (u) =>
+            u.state !== "RATE_LIMITED" &&
+            u.createdAt >= now.startOf("day").toJSDate(),
+        ).length >= dailyLimit
       )
         throw new BadRequestException("Daily AI generation limit reached.");
       return tx.aiUsage.create({
@@ -250,10 +276,13 @@ export class AiService {
         await this.db.aiUsage.update({
           where: { id: usage.id },
           data: {
-            state: "UNKNOWN",
-            costUsd: reserve,
+            state:
+              e instanceof ProviderRateLimitError ? "RATE_LIMITED" : "UNKNOWN",
+            costUsd: e instanceof ProviderRateLimitError ? 0 : reserve,
             error:
-              "Provider request failed or result was incomplete. Reserved maximum retained conservatively until reconciliation.",
+              e instanceof ProviderRateLimitError
+                ? "Provider explicitly rejected generation with HTTP 429; no completion accepted. Bounded recovery exhausted."
+                : "Provider request failed or result was incomplete. Reserved maximum retained conservatively until reconciliation.",
           },
         });
       throw new BadRequestException(

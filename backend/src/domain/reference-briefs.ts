@@ -72,7 +72,7 @@ export const referenceBriefs: ReferenceBrief[] = [
     niche: "AI tools",
     angle: "practical guide",
     intent:
-      "Explain clear Claude artificial intelligence AI prompts, a defined task and success criteria. Show illustrative prompts and evaluation steps without claiming executed tests, guaranteed accuracy, free access or invented model capabilities.",
+      "Explain clear Claude AI prompts: define a task, supply context, specify output format, constraints and success criteria. Use a clearly labelled illustrative summarization prompt for text supplied by the reader, with a checklist for assessing its response. Do not promise that a prompt will succeed. Exclude model-specific reasoning settings, chain-of-thought, API chaining and operating-system tutorials. No executed-test, guaranteed-accuracy, free-access or model-capability claims.",
     sources: [
       "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
       "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
