@@ -16,6 +16,7 @@ import { PerformanceController } from "./api/performance.controller";
 import { TrafficSyncController } from "./api/traffic-sync.controller";
 import { FetchDiagnosticsController } from "./api/fetch-diagnostics.controller";
 import { EditorialModule } from "./modules/editorial.module";
+import { GrowthModule } from "./modules/growth.module";
 @Module({
   imports: [
     DatabaseModule,
@@ -25,6 +26,7 @@ import { EditorialModule } from "./modules/editorial.module";
     IntegrationsModule,
     PublishingModule,
     EditorialModule,
+    GrowthModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 180 }]),
   ],
   controllers: [

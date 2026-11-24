@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import { similarity, normalizeTopic } from "./workflow";
 
+export const AUTOMATIC_MIN_WORDS = 450;
 export const EDITORIAL_ENABLE = "ENABLE PAID EDITORIAL DRAFTS";
 export const EDITORIAL_PUBLISH = "AUTHORIZE AUTOMATIC EDITORIAL PUBLISHING";
 export const PHOTO_CONFIRMATION = "CONFIRM REAL PHOTO RIGHTS";
@@ -52,7 +53,11 @@ export type PhotoCandidate = {
   checkedAt: Date;
   sourceUrl?: string;
 };
-export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
+export function photoPolicy(
+  photo: PhotoCandidate,
+  now = new Date(),
+  attachedArticleId?: string,
+) {
   const meta = photo.metadata as {
     providerPhotoId?: string;
     licenseCheckedBy?: string;
@@ -64,10 +69,14 @@ export function photoPolicy(photo: PhotoCandidate, now = new Date()) {
     };
   } | null;
   const approved = meta?.editorialPhoto;
-  const consumed = (photo.metadata as { automaticPhotoUse?: unknown } | null)
-    ?.automaticPhotoUse;
+  const consumed = (
+    photo.metadata as {
+      automaticPhotoUse?: { articleId?: string };
+    } | null
+  )?.automaticPhotoUse;
   return (
-    !consumed &&
+    (!consumed ||
+      (!!attachedArticleId && consumed.articleId === attachedArticleId)) &&
     photo.rightsConfirmed &&
     ((["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) &&
       [

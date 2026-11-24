@@ -734,3 +734,76 @@ test("owner can enroll manually imported Unsplash images and used assets remain 
   });
   expect((await service.enrollLibrary()).enrolled).toBe(0);
 });
+
+test("automatic quality report and prepared continuation use the same minimum without another image or model call", async () => {
+  await pool();
+  await enable(true);
+  uncertain = true;
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("NEEDS_REVIEW");
+  const article = await db.article.findUniqueOrThrow({
+    where: { id: run.articleId! },
+  });
+  await db.article.update({
+    where: { id: article.id },
+    data: {
+      html: "<h2>Short incomplete draft</h2><p>Needs expansion.</p>",
+      generation: { ...(article.generation as any), uncertainties: [] },
+    },
+  });
+  const report = await app.get(ArticlesService).quality(article.id);
+  expect(report.passed).toBe(false);
+  expect(
+    (report.issues as any[]).some(
+      (i) => i.code === "THIN_CONTENT" && i.message.includes("450"),
+    ),
+  ).toBe(true);
+  await expect(service.resumePrepared(run.id, article.version)).rejects.toThrow(
+    "quality issues",
+  );
+  await db.article.update({
+    where: { id: article.id },
+    data: { html: article.html },
+  });
+  await db.editorialRun.update({
+    where: { id: run.id },
+    data: { slotAt: new Date(Date.now() - 60000) },
+  });
+  await service.resumePrepared(run.id, article.version);
+  const queued = await db.editorialRun.findUniqueOrThrow({
+    where: { id: run.id },
+  });
+  expect(queued.slotAt.getTime()).toBeGreaterThan(Date.now() + 5 * 60000);
+  await service.tick();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("SCHEDULED");
+  expect(generated).toBe(1);
+  expect(
+    await db.articleMedia.count({ where: { articleId: article.id } }),
+  ).toBe(1);
+});
+
+test("one short automatic draft gets one bounded expansion and one publication schedule", async () => {
+  const ai = app.get(AiService);
+  const generate = jest.mocked(ai.generate).getMockImplementation()!;
+  jest.spyOn(ai, "generate").mockImplementation(async (dto, version) => {
+    const result = await generate(dto, version);
+    if (generated === 1)
+      await db.article.update({
+        where: { id: dto.articleId! },
+        data: { html: "<h2>Incomplete answer</h2><p>Too short.</p>" },
+      });
+    return result;
+  });
+  await pool();
+  await enable(true);
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow();
+  expect(run.state).toBe("SCHEDULED");
+  expect(generated).toBe(2);
+  expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});

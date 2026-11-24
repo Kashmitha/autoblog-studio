@@ -11,7 +11,7 @@ import { ArticleDto, SourceDto } from "../api/dtos";
 import { safeHtml, checkQuality } from "../domain/quality";
 import { assertTransition } from "../domain/workflow";
 import { publicGet } from "../infrastructure/public-http";
-import { photoPolicy } from "../domain/editorial";
+import { AUTOMATIC_MIN_WORDS, photoPolicy } from "../domain/editorial";
 import { previousPhotoUse } from "../domain/photo-preparation";
 export const articleInclude = {
   sources: true,
@@ -196,8 +196,15 @@ export class ArticlesService {
       where: { id: { not: id } },
       select: { id: true, title: true, html: true },
     });
+    const automatic = await this.db.editorialRun.findUnique({
+      where: { articleId: id },
+      select: { id: true },
+    });
     const report = checkQuality(a, others, {
-      minWords: Math.max(80, Number(process.env.QUALITY_MIN_WORDS) || 180),
+      minWords: Math.max(
+        automatic ? AUTOMATIC_MIN_WORDS : 80,
+        Number(process.env.QUALITY_MIN_WORDS) || 180,
+      ),
       sourceMaxAgeDays: Math.max(
         1,
         Number(process.env.QUALITY_SOURCE_MAX_AGE_DAYS) || 30,

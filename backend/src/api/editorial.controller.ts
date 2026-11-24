@@ -84,6 +84,12 @@ export class EditorialController {
   @Post("queue") queue() {
     return this.editorial.queue();
   }
+  @Post("runs/:id/resume-prepared") resumePrepared(
+    @Param("id") id: string,
+    @Body() input: PreparePhotoDto,
+  ) {
+    return this.editorial.resumePrepared(id, input.version);
+  }
   @Post("runs/:id/resume-photo") resume(@Param("id") id: string) {
     return this.editorial.resume(id);
   }

@@ -213,7 +213,8 @@ export class CloudPublishingService {
         policy?.expectedPhotoId &&
         !a.media.some(
           ({ media }) =>
-            media.id === policy.expectedPhotoId && photoPolicy(media),
+            media.id === policy.expectedPhotoId &&
+            photoPolicy(media, new Date(), a.id),
         )
       )
         throw new ConflictException(
