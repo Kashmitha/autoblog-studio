@@ -524,10 +524,11 @@ export function EditorialPipeline({ notify }: { notify: Notify }) {
             ))}
           </div>
           <p className="small subtle">
-            The worker starts automatic preparation 5–30 minutes before a slot.
-            It must stay running for generation and upload. Once Blogger
-            confirms a future schedule, the computer can be off. Missed slots
-            are skipped; they are not backfilled in a burst.
+            The one-post daily workflow prepares up to 24 hours ahead. Other
+            workflows start 5–30 minutes before their slots. It must stay
+            running for generation and upload. Once Blogger confirms a future
+            schedule, the computer can be off. Missed slots are skipped; they
+            are not backfilled in a burst.
           </p>
           {(policy.autoPublish ? data.publishingBlockers : data.draftBlockers)
             .length > 0 && (

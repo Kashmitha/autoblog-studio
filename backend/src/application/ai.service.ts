@@ -7,7 +7,7 @@ import {
   ProviderRateLimitError,
 } from "../infrastructure/ai.provider";
 import { ArticlesService } from "./articles.service";
-import { publicGet } from "../infrastructure/public-http";
+import { readResearchSource } from "../infrastructure/research-source";
 import { AUTOMATIC_MIN_WORDS } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { GenerateDto } from "../api/dtos";
@@ -115,13 +115,9 @@ export class AiService {
           "Add sources and record the claims each supports.",
         );
       for (const source of a.sources.slice(0, 4)) {
-        const r = await publicGet(source.url);
-        if (r.status !== 200)
-          throw new BadRequestException(
-            `Research source unavailable: ${source.url}`,
-          );
+        const r = await readResearchSource(source.url);
         research.push({
-          url: source.url,
+          url: r.sourceUrl,
           supports: source.note,
           text: referenceExcerpt(
             r.body,
@@ -173,7 +169,7 @@ export class AiService {
           : undefined,
       draftLength:
         dto.task === "draft"
-          ? `Write 550-800 useful words, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Omit unsupported host paths, outputs, platform/version differences or third-party recommendations. Keep genuine missing evidence in uncertainties.`
+          ? `Write 650-850 useful prose words excluding code, with a required minimum of ${AUTOMATIC_MIN_WORDS} words, descriptive h2 sections, supported steps and limitations. Do not pad a short answer; flag insufficient reference support in uncertainties. Omit unsupported host paths, outputs, platform/version differences or third-party recommendations. Keep genuine missing evidence in uncertainties.`
           : undefined,
     });
     if (Buffer.byteLength(prompt) > 32000)

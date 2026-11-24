@@ -30,6 +30,10 @@ import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
 import { CommonsPhotoService } from "./commons-photo.service";
 import { articlePhotoTerms } from "../domain/photo-preparation";
 import { commonsAutoEnabled } from "../domain/commons-photo";
+import {
+  readResearchSource,
+  ResearchSourceUnavailable,
+} from "../infrastructure/research-source";
 
 export type EditorialInput = {
   enabled: boolean;
@@ -486,10 +490,35 @@ export class EditorialService {
     if (!c.settings.enabled)
       throw new BadRequestException("Enable the editorial workflow first.");
     if (c.blockers.length) throw new BadRequestException(c.blockers.join(" "));
+    const ahead =
+      c.settings.autoPublish &&
+      c.settings.autoPlan &&
+      c.settings.times.length === 1;
+    if (
+      ahead &&
+      !manual &&
+      (await this.db.editorialRun.findFirst({
+        where: {
+          state: { in: ["WAITING_AI", "WAITING_SOURCE"] },
+          policyRevision: c.settings.revision,
+          slotAt: { gt: new Date(Date.now() + 5 * 60000) },
+        },
+      }))
+    )
+      return {
+        queued: false,
+        note: "An earlier saved preparation is recovering. Its correction allowance takes priority over another future draft.",
+      };
+    if (ahead && !manual && !(await this.hasTextAllowance()))
+      return {
+        queued: false,
+        note: "Waiting for the daily text allowance to reset; existing Blogger schedules are retained.",
+      };
     return this.db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172260)`;
       const start = DateTime.now().setZone("Asia/Colombo").startOf("day");
       if (
+        !ahead &&
         (await tx.editorialRun.count({
           where: {
             createdAt: {
@@ -504,8 +533,25 @@ export class EditorialService {
           note: "The configured daily editorial attempt limit has been reached. No automatic text regeneration retry is allowed.",
         };
       let reservedDay = false;
-      for (const slot of editorialSlots(c.settings.times, new Date(), manual)) {
+      for (const slot of editorialSlots(
+        c.settings.times,
+        new Date(),
+        manual,
+        ahead,
+      )) {
         const day = DateTime.fromJSDate(slot.at).setZone("Asia/Colombo");
+        if (
+          ahead &&
+          (await tx.editorialRun.count({
+            where: {
+              slotAt: {
+                gte: day.startOf("day").toJSDate(),
+                lte: day.endOf("day").toJSDate(),
+              },
+            },
+          })) >= c.settings.times.length
+        )
+          continue;
         const reservations = await tx.publishJob.count({
           where: {
             scheduledAt: {
@@ -664,6 +710,135 @@ export class EditorialService {
       );
     return policy;
   }
+  private async hasTextAllowance() {
+    const start = DateTime.now()
+      .setZone("Asia/Colombo")
+      .startOf("day")
+      .toJSDate();
+    return (
+      (await this.db.aiUsage.count({
+        where: { createdAt: { gte: start }, state: { not: "RATE_LIMITED" } },
+      })) < aiConfiguration().dailyLimit
+    );
+  }
+  private async recordCorrection(run: EditorialRun) {
+    if (!(await this.hasTextAllowance()))
+      throw new BadRequestException("Daily AI generation limit reached.");
+    const articleId =
+      run.articleId ||
+      (await this.db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .articleId;
+    const attempts = await this.db.auditLog.count({
+      where: { action: "AI_DRAFT_CREATED", entityId: articleId },
+    });
+    if (attempts >= 4)
+      throw new BadRequestException(
+        "The three bounded source-backed corrections did not produce a publishable article.",
+      );
+    await this.db.auditLog.create({
+      data: {
+        action: "EDITORIAL_TEXT_CORRECTION",
+        entityId: run.id,
+        message: `Source-backed correction after ${attempts} accepted draft(s); existing daily provider and spending limits still apply.`,
+      },
+    });
+  }
+  private async deferCorrection(
+    run: EditorialRun,
+    version: number,
+    reason: string,
+  ) {
+    const policy = await this.active(run);
+    const articleId =
+      run.articleId ||
+      (await this.db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .articleId;
+    if (
+      !policy.autoPublish ||
+      !policy.autoPlan ||
+      policy.times.length !== 1 ||
+      run.slotAt.getTime() <= Date.now() + 10 * 60000
+    )
+      return false;
+    if (
+      (await this.db.auditLog.count({
+        where: { action: "AI_DRAFT_CREATED", entityId: articleId },
+      })) >= 4
+    )
+      return false;
+    await this.db.editorialRun.update({
+      where: { id: run.id },
+      data: {
+        state: "WAITING_AI",
+        stage: "TEXT_REPAIR",
+        articleVersion: version,
+        finishedAt: new Date(),
+        message: `Automatic source-backed correction is waiting for allowance and backoff: ${reason.slice(0, 450)} No approval is required while recovery is pending; no unverified claim will be published.`,
+      },
+    });
+    return true;
+  }
+  /** Resume only explicitly rejected/pre-request work, never ambiguous remote writes. */
+  private async recoverPreparation() {
+    const c = await this.context();
+    if (!c.settings.autoPublish) return;
+    const runs = await this.db.editorialRun.findMany({
+      where: {
+        state: { in: ["WAITING_SOURCE", "WAITING_AI"] },
+        policyRevision: c.settings.revision,
+        blogId: c.settings.blogId,
+        slotAt: { gt: new Date(Date.now() + 10 * 60000) },
+        finishedAt: { lt: new Date(Date.now() - 5 * 60000) },
+      },
+      take: 2,
+      orderBy: { slotAt: "asc" },
+    });
+    for (const run of runs) {
+      if (run.state === "WAITING_AI" && !(await this.hasTextAllowance()))
+        continue;
+      const attempts = await this.db.auditLog.count({
+        where: { action: "EDITORIAL_PREPARATION_RESUMED", entityId: run.id },
+      });
+      if (
+        attempts >= 8 ||
+        Date.now() - run.finishedAt!.getTime() <
+          Math.min(60, 5 * 2 ** attempts) * 60000
+      )
+        continue;
+      if (run.articleId) {
+        const a = await this.db.article.findUnique({
+          where: { id: run.articleId },
+        });
+        if (
+          !a ||
+          a.version !== run.articleVersion ||
+          a.publishingTarget !== "local" ||
+          a.remotePostId ||
+          !["NEEDS_REVIEW", "DRAFTING"].includes(a.status)
+        )
+          continue;
+      }
+      await this.db.$transaction(async (tx) => {
+        const changed = await tx.editorialRun.updateMany({
+          where: { id: run.id, state: run.state },
+          data: {
+            state: "QUEUED",
+            finishedAt: null,
+            message:
+              "Automatic preparation recovery queued under the unchanged owner policy.",
+          },
+        });
+        if (changed.count)
+          await tx.auditLog.create({
+            data: {
+              action: "EDITORIAL_PREPARATION_RESUMED",
+              entityId: run.id,
+              message: `Bounded attempt ${attempts + 1}/8 after ${run.state}; no ambiguous completion or Blogger write is replayed.`,
+            },
+          });
+      });
+    }
+  }
   /** Retry only saved, unchanged photo-blocked drafts; never replay text or remote writes. */
   private async recoverPhotos() {
     await this.db.$transaction(async (tx) => {
@@ -758,6 +933,7 @@ export class EditorialService {
       )
         return;
       await this.recoverPhotos();
+      await this.recoverPreparation();
       if (
         !(await this.db.editorialRun.findFirst({ where: { state: "QUEUED" } }))
       ) {
@@ -792,7 +968,16 @@ export class EditorialService {
       let a;
       if (run.articleId) {
         a = await this.articles.get(run.articleId);
-        if (a.version !== run.articleVersion || a.status !== "NEEDS_REVIEW")
+        if (
+          a.version !== run.articleVersion ||
+          a.publishingTarget !== "local" ||
+          a.remotePostId ||
+          !(
+            ["TEXT", "TEXT_REPAIR"].includes(run.stage)
+              ? ["NEEDS_REVIEW", "DRAFTING"]
+              : ["NEEDS_REVIEW"]
+          ).includes(a.status)
+        )
           throw new ConflictException(
             "Saved draft changed; photo-stage retry stopped.",
           );
@@ -816,12 +1001,41 @@ export class EditorialService {
               })
               .filter((plan) => plan.photo)
           : [];
-        const imagePlan = imageLed
+        let imagePlan = imageLed
           ? chooseVariedBrief(
               imagePlans,
               recent.map((a) => a.niche),
             )
           : undefined;
+        if (imageLed) {
+          const remaining = [...imagePlans];
+          let checked = 0;
+          while (imagePlan && checked++ < 4) {
+            try {
+              const reads = await Promise.all(
+                imagePlan.sources.map((url) => readResearchSource(url)),
+              );
+              imagePlan = {
+                ...imagePlan,
+                sources: reads.map((read) => read.sourceUrl),
+              };
+              break;
+            } catch {
+              remaining.splice(
+                remaining.findIndex((plan) => plan === imagePlan),
+                1,
+              );
+              imagePlan = chooseVariedBrief(
+                remaining,
+                recent.map((a) => a.niche),
+              );
+            }
+          }
+          if (imagePlans.length && (!imagePlan || checked > 4))
+            throw new ResearchSourceUnavailable(
+              "Matching source-backed topics are temporarily unavailable. Waiting before another source check; no text request was sent.",
+            );
+        }
         if (imageLed && !imagePlan?.photo)
           throw new BadRequestException(
             "No unused library photograph matches the supported source-backed topics. Refill the reviewed library before the next daily slot.",
@@ -904,13 +1118,32 @@ export class EditorialService {
           });
           return saved;
         });
+      }
+      a = await this.articles.get(a.id);
+      if (run.stage === "SOURCES") {
+        await this.articles.verifySources(a.id);
+        a = await this.articles.get(a.id);
+        if (a.sources.some((source) => source.httpStatus !== 200))
+          throw new ResearchSourceUnavailable(
+            "Saved draft sources remain unavailable; text will not be regenerated.",
+          );
+        await this.db.editorialRun.update({
+          where: { id: run.id },
+          data: { stage: "PHOTO", articleVersion: a.version },
+        });
+      }
+      if (!run.articleId || ["TEXT", "TEXT_REPAIR"].includes(run.stage)) {
         await this.active(run);
-        let textRepairUsed = false;
+        let textRepairUsed = run.stage === "TEXT_REPAIR";
+        if (textRepairUsed) await this.recordCorrection(run);
         let generated: Awaited<ReturnType<AiService["generate"]>>;
         try {
           generated = await this.ai.generate(
             { task: "draft", articleId: a.id, niche: a.niche },
             a.version,
+            textRepairUsed
+              ? `Correct the saved draft against the fetched references. It currently has ${sanitizeHtml(a.html, { allowedTags: [], allowedAttributes: {} }).split(/\s+/).filter(Boolean).length} words; at least ${AUTOMATIC_MIN_WORDS} are required. Produce 650-850 useful words excluding code, with concrete prerequisites, step explanations, result verification and documented caveats. Remove unsupported performance/speed guarantees, invented output and unsupported version claims rather than paraphrasing them. A tutorial not covering an advanced feature is scope, not an unresolved factual assertion. Client-dependent presentation is a caveat if no exact output is asserted. Put these in the article; uncertainties must identify only unsupported claims STILL ASSERTED in the final HTML. Remove such claims when possible; otherwise retain them. Return [] only when none remain. Do not merely clear prior uncertainties. Return the complete replacement JSON and full HTML.`
+              : undefined,
           );
         } catch (error) {
           if (
@@ -921,6 +1154,7 @@ export class EditorialService {
             throw error;
           await this.active(run);
           textRepairUsed = true;
+          await this.recordCorrection(run);
           await this.db.editorialRun.update({
             where: { id: run.id },
             data: {
@@ -1013,6 +1247,7 @@ export class EditorialService {
               message: `Draft has ${words} words${uncertain ? " and unresolved claims" : ""}; attempting one source-backed correction within the existing daily provider limits.`,
             },
           });
+          await this.recordCorrection(run);
           generated = await this.ai.generate(
             { task: "draft", articleId: a.id, niche: a.niche },
             a.version,
@@ -1041,8 +1276,17 @@ export class EditorialService {
           disclosure: false,
           version: a.version,
         });
+        a = await this.articles.get(a.id);
+        await this.db.editorialRun.update({
+          where: { id: run.id },
+          data: { stage: "SOURCES", articleVersion: a.version },
+        });
         await this.articles.verifySources(a.id);
         a = await this.articles.get(a.id);
+        if (a.sources.some((source) => source.httpStatus !== 200))
+          throw new ResearchSourceUnavailable(
+            "Saved draft sources became unavailable; waiting to recheck without regenerating text.",
+          );
         await this.db.editorialRun.update({
           where: { id: run.id },
           data: { articleVersion: a.version, stage: "PHOTO" },
@@ -1135,7 +1379,19 @@ export class EditorialService {
       if (
         !report.passed ||
         issues.some((issue) => issue.code !== "EDITORIAL_REVIEW")
-      )
+      ) {
+        if (
+          issues.some((issue) => issue.code === "THIN_CONTENT") &&
+          issues.every((issue) =>
+            ["THIN_CONTENT", "EDITORIAL_REVIEW"].includes(issue.code),
+          ) &&
+          (await this.deferCorrection(
+            run,
+            a.version,
+            "Expand the saved incomplete draft with supported explanation, not filler.",
+          ))
+        )
+          return;
         throw new BadRequestException(
           `Quality checks stopped this run: ${(
             report.issues as unknown as { code: string; message: string }[]
@@ -1144,10 +1400,19 @@ export class EditorialService {
             .map((i) => i.message)
             .join(" ")}`,
         );
+      }
       if (
         !Array.isArray(generation.uncertainties) ||
         generation.uncertainties.length
       ) {
+        if (
+          await this.deferCorrection(
+            run,
+            a.version,
+            "Remove or substantiate the saved unresolved claims; do not merely clear uncertainties.",
+          )
+        )
+          return;
         await this.db.editorialRun.update({
           where: { id: run.id },
           data: {
@@ -1274,22 +1539,44 @@ export class EditorialService {
     } catch (error) {
       const detail =
         error instanceof BadRequestException ||
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof ResearchSourceUnavailable
           ? error.message.slice(0, 500)
           : "Check the saved draft, sources and provider usage.";
       const current = await this.db.editorialRun.findUnique({
         where: { id: run.id },
       });
+      const waitingSource = error instanceof ResearchSourceUnavailable;
+      const waitingAi =
+        ["TEXT", "TEXT_REPAIR"].includes(current?.stage || "") &&
+        /Daily AI generation limit reached|Groq rate or token quota reached/.test(
+          detail,
+        );
+      const saved = current?.articleId
+        ? await this.db.article.findUnique({
+            where: { id: current.articleId },
+            select: { version: true },
+          })
+        : null;
       await this.db.editorialRun.update({
         where: { id: run.id },
         data: {
           state:
-            current?.stage === "BLOGGER" ? "REMOTE_ATTENTION" : "NEEDS_REVIEW",
+            current?.stage === "BLOGGER"
+              ? "REMOTE_ATTENTION"
+              : waitingSource
+                ? "WAITING_SOURCE"
+                : waitingAi
+                  ? "WAITING_AI"
+                  : "NEEDS_REVIEW",
+          ...(saved ? { articleVersion: saved.version } : {}),
           finishedAt: new Date(),
           message:
             current?.stage === "BLOGGER"
               ? "Inspect Blogger and saved remote intent before any retry. This request will not be replayed automatically."
-              : `Preparation stopped: ${detail} No automatic regeneration or publication retry.`,
+              : waitingSource || waitingAi
+                ? `Waiting automatically: ${detail} The saved stage will resume with backoff while its slot is future and the original policy remains active.`
+                : `Preparation stopped: ${detail} No automatic regeneration or publication retry.`,
         },
       });
     }
