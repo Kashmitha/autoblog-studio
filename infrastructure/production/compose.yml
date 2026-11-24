@@ -1,0 +1,35 @@
+services:
+  postgres:
+    ports: !reset []
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  redis:
+    ports: !reset []
+    logging: *logs
+  backend:
+    ports: !reset []
+    logging: *logs
+  worker:
+    logging: *logs
+  frontend:
+    ports: !reset []
+    logging: *logs
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: [app]
+    environment:
+      STUDIO_DOMAIN: ${STUDIO_DOMAIN:?Set STUDIO_DOMAIN in the private production environment}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infrastructure/production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend]
+    logging: *logs
+volumes:
+  caddy_data:
+  caddy_config:

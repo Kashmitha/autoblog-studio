@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { webmasters } from "googleapis/build/src/apis/webmasters";
-import { analyticsdata } from "googleapis/build/src/apis/analyticsdata";
+import { AnalyticsConnectionService } from "./analytics-connection.service";
 import { GoogleService } from "../infrastructure/blogger.service";
 import { MetricsService } from "./metrics.service";
 import { SearchConsoleService } from "./search-console.service";
@@ -12,6 +12,7 @@ export class ReportingService {
     private readonly google: GoogleService,
     private readonly metrics: MetricsService,
     private readonly search: SearchConsoleService,
+    private readonly ga: AnalyticsConnectionService,
   ) {}
   private dates(start: string, end: string) {
     if (!reportingRange(start, end))
@@ -122,64 +123,6 @@ export class ReportingService {
     };
   }
   async analytics(start: string, end: string) {
-    const d = this.dates(start, end),
-      property = process.env.GA_PROPERTY_ID;
-    if (!property || !/^\d+$/.test(property))
-      throw new BadRequestException(
-        "Configure numeric GA_PROPERTY_ID locally, enable the Data API and authorize reporting scopes.",
-      );
-    if (!(await this.google.reportingPermissions()).analytics)
-      throw new BadRequestException(
-        "Connect Google Analytics read access before importing pageviews.",
-      );
-    const api = analyticsdata({
-      version: "v1beta",
-      auth: await this.google.client(),
-    });
-    let imported = 0;
-    for (let offset = 0; offset < 100000; offset += 10000) {
-      const r = await api.properties
-        .runReport(
-          {
-            property: `properties/${property}`,
-            requestBody: {
-              dateRanges: [{ startDate: d.start, endDate: d.end }],
-              dimensions: [{ name: "date" }, { name: "pageLocation" }],
-              metrics: [{ name: "screenPageViews" }],
-              limit: "10000",
-              offset: String(offset),
-            },
-          },
-          { timeout: 30000, retry: false },
-        )
-        .catch((error) => {
-          throw new BadRequestException(inspectionError(error).errorMessage);
-        });
-      for (const row of r.data.rows || []) {
-        const compact = row.dimensionValues?.[0]?.value,
-          url = row.dimensionValues?.[1]?.value;
-        if (!compact || !url || !url.startsWith("https://")) continue;
-        const value = row.metricValues?.[0]?.value;
-        if (
-          typeof value !== "string" ||
-          !/^\d+$/.test(value) ||
-          !Number.isSafeInteger(Number(value))
-        )
-          continue;
-        const date = `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
-        await this.metrics.traffic({
-          date,
-          url,
-          pageviews: Number(value),
-          source: "GOOGLE_ANALYTICS",
-        });
-        imported++;
-      }
-      if ((r.data.rows?.length || 0) < 10000) break;
-    }
-    return {
-      imported,
-      note: "Reporting dates use the Google Analytics property timezone.",
-    };
+    return this.ga.sync(start, end);
   }
 }

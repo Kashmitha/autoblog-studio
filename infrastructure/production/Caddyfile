@@ -1,0 +1,12 @@
+{$STUDIO_DOMAIN} {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Robots-Tag "noindex, nofollow"
+    -Server
+  }
+  @docs path /api/docs /api/docs/* /api/docs-json /api/docs-yaml
+  respond @docs 404
+  respond /robots.txt "User-agent: *\nDisallow: /" 200
+  reverse_proxy frontend:3100
+}

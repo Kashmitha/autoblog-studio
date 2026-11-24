@@ -38,7 +38,7 @@ class EditorialSettingsDto {
   @IsOptional() @IsBoolean() autoPlan?: boolean;
   @IsInt() @Min(0) revision!: number;
   @IsArray()
-  @ArrayMinSize(2)
+  @ArrayMinSize(1)
   @ArrayMaxSize(2)
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { each: true })
   times!: string[];
@@ -77,6 +77,9 @@ export class EditorialController {
   }
   @Post("starter-briefs") starters() {
     return this.editorial.starters();
+  }
+  @Post("enroll-library") enrollLibrary() {
+    return this.editorial.enrollLibrary();
   }
   @Post("queue") queue() {
     return this.editorial.queue();

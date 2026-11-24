@@ -40,6 +40,7 @@ import { ReportingService } from "../application/reporting.service";
 import { TrafficSyncService } from "../application/traffic-sync.service";
 import { SearchConsoleService } from "../application/search-console.service";
 import { env } from "../config";
+import { AnalyticsConnectionService } from "../application/analytics-connection.service";
 @Controller()
 @UseGuards(SessionGuard)
 export class StudioController {
@@ -53,6 +54,7 @@ export class StudioController {
     private readonly reporting: ReportingService,
     private readonly search: SearchConsoleService,
     private readonly trafficSync: TrafficSyncService,
+    private readonly analyticsConnection: AnalyticsConnectionService,
   ) {}
   @Get("dashboard") dashboard(@Query("month") month?: string) {
     return this.metrics.overview(month);
@@ -147,7 +149,10 @@ export class StudioController {
     });
   }
   @Get("media") listMedia() {
-    return this.db.mediaAsset.findMany({ orderBy: { createdAt: "desc" } });
+    return this.db.mediaAsset.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { articles: true } } },
+    });
   }
   @Get("media/search") searchMedia(
     @Query("q") q: string,
@@ -226,7 +231,8 @@ export class StudioController {
       searchConsoleSiteUrl: search.siteUrl,
       searchConsoleReadAccess: permissions.searchConsole,
       analyticsReadAccess: permissions.analytics,
-      analyticsConfigured: !!process.env.GA_PROPERTY_ID,
+      analyticsConfigured: (await this.analyticsConnection.configuration())
+        .configured,
     };
   }
   @Post("integrations/ai/test") testAi() {

@@ -1,6 +1,8 @@
 # Progress
 
-Last updated: 16 November 2026, Asia/Colombo.
+Last updated: 17 November 2026, Asia/Colombo.
+
+17 November GA4 setup: added a Blog connections configuration panel, distinct numeric Property ID / G- Measurement ID fields, OAuth read-access guidance, test-before-save and Blogger/Realtime setup instructions. An additive ReportingSettings migration stores the selection, pinned blog, property timezone and revision. Imports are host-filtered and atomic, preserve existing records on partial/provider/concurrency failure, distinguish empty reports from explicit zeros, and retain the legacy environment-property fallback. Existing publishing, image and Search Console settings are preserved. Actual collection still requires owner-created GA4 tracking and consent. See [Google Analytics setup](GOOGLE_ANALYTICS.md).
 
 16 November automatic workflow completion fixes: research references actually fetched for generation are inserted when absent; documented configuration caveats are distinguished from unresolved claims in provider instructions; photo preparation runs before the unresolved-claim approval stop. The pool UI is marked optional with Commons, and history distinguishes an earlier stopped attempt from a separately scheduled/published article. Existing factual/quality/image/budget gates and the two-attempt daily limit remain in place. No owner policy or existing remote schedule is changed by this update.
 

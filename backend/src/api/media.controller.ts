@@ -30,6 +30,12 @@ import { PrismaService } from "../infrastructure/prisma.service";
 import { SessionGuard } from "./auth";
 const uploads = resolve(__dirname, "../../../uploads");
 class UploadDto {
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === "true")
+  @IsBoolean()
+  automaticPhoto?: boolean;
+  @IsOptional() @IsString() @MaxLength(750) photoKeywords?: string;
+
   @ApiProperty({ required: true, type: String })
   @IsString()
   @MinLength(2)
@@ -79,6 +85,21 @@ export class MediaController {
       throw new BadRequestException(
         "Upload an original image and confirm that you own its rights.",
       );
+    const tags = [
+      ...new Set(
+        (d.photoKeywords || "")
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (
+      d.automaticPhoto &&
+      (!tags.length || tags.length > 15 || tags.some((t) => t.length > 50))
+    )
+      throw new BadRequestException(
+        "Add 1-15 real-photo subject keywords of at most 50 characters.",
+      );
     const b = file.buffer;
     const ext =
       b.length > 12 &&
@@ -114,6 +135,17 @@ export class MediaController {
         sourceUrl: url,
         licenseUrl: url,
         metadata: {
+          ...(d.automaticPhoto
+            ? {
+                editorialPhoto: {
+                  enabled: true,
+                  tags,
+                  confirmedAt: new Date().toISOString(),
+                  confirmedBy: "owner",
+                  reviewKind: "IMPORT_REAL_PHOTO_CONFIRMATION",
+                },
+              }
+            : {}),
           storageKey,
           contentType: ext === "jpg" ? "image/jpeg" : "image/" + ext,
           sha256: createHash("sha256").update(b).digest("hex"),

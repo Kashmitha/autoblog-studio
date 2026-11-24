@@ -46,6 +46,8 @@ No dashboard scraping, automated publisher login, traffic generation or automati
 
 ## Search Console and Analytics
 
+17 November GA4 configuration: **Blog connections → Google Analytics connection** now saves the numeric property and G- Measurement ID separately after a read-only access test. Follow [the complete Blogger/GA4 setup guide](GOOGLE_ANALYTICS.md). Analytics imports use the saved selection (legacy `GA_PROPERTY_ID` fallback), filter to the selected blog, and commit only a complete validated report. This does not install a public tracking tag or change publishing/automation settings.
+
 Updated 6 November: Search Console read consent, API enablement and verified-property selection are complete. Stored-index inspection/history and daily follow-up are active; actual reports remain unindexed for the two published Studio tutorials. A real Search Console traffic import succeeded with no returned rows. Traffic & SEO now has published-article comparisons, explicit sources/coverage and CSV export. See [Search Console behavior](SEARCH_CONSOLE.md), [verification](SEARCH_CONSOLE_TESTING.md) and [article performance](ARTICLE_PERFORMANCE.md). Analytics remains optional and separate. Do not repeat completed Google setup.
 
 [Search Analytics query](https://developers.google.com/webmaster-tools/v1/searchanalytics/query), [Analytics Data runReport](https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/properties/runReport), [Search Console](https://search.google.com/search-console).

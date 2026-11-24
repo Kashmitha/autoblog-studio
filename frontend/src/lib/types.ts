@@ -32,7 +32,9 @@ export interface Source {
   httpStatus: number | null;
 }
 export interface Media {
+  _count?: { articles: number };
   metadata?: {
+    automaticPhotoUse?: { articleId: string; usedAt: string };
     commonsAutoReview?: { humanReviewed: boolean; policyVersion: number };
   };
   providerPhotoId?: string;

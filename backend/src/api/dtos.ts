@@ -204,6 +204,14 @@ export class TrafficDto {
   source!: string;
 }
 export class MediaDto {
+  @IsOptional() @IsBoolean() automaticPhoto?: boolean;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(15)
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  photoKeywords?: string[];
+
   @ApiProperty({ required: false, type: String })
   @IsOptional()
   @IsString()

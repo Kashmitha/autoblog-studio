@@ -17,6 +17,8 @@ import {
   EDITORIAL_ENABLE,
   EDITORIAL_PUBLISH,
   PHOTO_CONFIRMATION,
+  choosePhoto,
+  libraryImageTags,
 } from "../domain/editorial";
 import { safeHtml } from "../domain/quality";
 import { normalizeTopic } from "../domain/workflow";
@@ -24,6 +26,7 @@ import sanitizeHtml from "sanitize-html";
 import { aiConfiguration } from "../domain/ai-config";
 import { referenceBriefs, chooseVariedBrief } from "../domain/reference-briefs";
 import { CommonsPhotoService } from "./commons-photo.service";
+import { articlePhotoTerms } from "../domain/photo-preparation";
 import { commonsAutoEnabled } from "../domain/commons-photo";
 
 export type EditorialInput = {
@@ -67,8 +70,9 @@ export class EditorialService {
         this.db.mediaAsset.findMany({
           where: {
             rightsConfirmed: true,
-            provider: { in: ["WIKIMEDIA", "ORIGINAL"] },
+            provider: { in: ["WIKIMEDIA", "ORIGINAL", "UNSPLASH"] },
           },
+          include: { articles: { select: { articleId: true } } },
           orderBy: { createdAt: "desc" },
           take: 200,
         }),
@@ -101,9 +105,11 @@ export class EditorialService {
     const ai = aiConfiguration();
     const paidReady = ai.ready; // retained API field for existing clients
     const blockers: string[] = [...ai.blockers];
-    if (Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < 2)
+    if (
+      Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < settings.times.length
+    )
       blockers.push(
-        "Text-generation daily limit must allow two drafts; the monthly spending cap still applies.",
+        "Text-generation daily limit must cover the configured daily slots; the monthly spending cap still applies.",
       );
     if (!heartbeat || Date.now() - heartbeat.lastSeen.getTime() > 120000)
       blockers.push(
@@ -140,7 +146,17 @@ export class EditorialService {
         },
       },
     });
-    const eligiblePhotos = c.photos.filter((photo) => photoPolicy(photo));
+    const retries = await this.db.auditLog.groupBy({
+      by: ["entityId"],
+      where: {
+        action: "EDITORIAL_PHOTO_AUTO_RETRY",
+        entityId: { in: runs.map((run) => run.id) },
+      },
+      _count: { _all: true },
+    });
+    const eligiblePhotos = c.photos.filter(
+      (photo) => photoPolicy(photo) && !photo.articles.length,
+    );
     const publishingBlockers = [...c.blockers];
     if (
       process.env.BLOGGER_MODE !== "live" ||
@@ -153,11 +169,11 @@ export class EditorialService {
       );
     if (!eligiblePhotos.length && !commonsAutoEnabled())
       publishingBlockers.push(
-        "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash stays manual.",
+        "Review real photographs and license rights, then add keywords to the automatic photo pool. Unsplash search/import remain manual; enroll the curated library to use saved assets.",
       );
-    if ((c.automation?.dailyLimit || 0) < 2)
+    if ((c.automation?.dailyLimit || 0) < c.settings.times.length)
       publishingBlockers.push(
-        "Set the publishing daily limit to at least two; the pipeline itself never exceeds two slots per day.",
+        "Set the publishing daily limit to cover the configured daily slots (one or two).",
       );
     return {
       settings: c.settings,
@@ -194,17 +210,28 @@ export class EditorialService {
             (photo.metadata as { editorialPhoto?: Prisma.JsonValue } | null)
               ?.editorialPhoto || null,
         },
-        eligible: photoPolicy(photo),
+        eligible: photoPolicy(photo) && !photo.articles.length,
+        used:
+          photo.articles.length > 0 ||
+          !!(photo.metadata as { automaticPhotoUse?: unknown } | null)
+            ?.automaticPhotoUse,
       })),
-      runs,
+      runs: runs.map((run) => ({
+        ...run,
+        photoRetries:
+          retries.find((row) => row.entityId === run.id)?._count._all || 0,
+      })),
       nextSlots: editorialSlots(c.settings.times, new Date(), true).slice(0, 2),
       workerLastSeen: c.heartbeat?.lastSeen || null,
     };
   }
   async save(input: EditorialInput) {
-    if (input.times.length !== 2 || new Set(input.times).size !== 2)
+    if (
+      ![1, 2].includes(input.times.length) ||
+      new Set(input.times).size !== input.times.length
+    )
       throw new BadRequestException(
-        "Choose two different daily times in Asia/Colombo.",
+        "Choose one daily time, or two different times, in Asia/Colombo.",
       );
     const c = await this.context();
     if (input.enabled) {
@@ -224,8 +251,21 @@ export class EditorialService {
         input.autoPublish ? status.publishingBlockers : status.draftBlockers
       ).filter(
         (message) =>
-          !(input.autoPlan && message.startsWith("Add source-backed")),
+          !(input.autoPlan && message.startsWith("Add source-backed")) &&
+          !message.startsWith("Text-generation daily limit") &&
+          !message.startsWith("Set the publishing daily limit"),
       );
+      if (
+        Number(process.env.AI_DAILY_GENERATION_LIMIT || 2) < input.times.length
+      )
+        blockers.push(
+          "Text-generation limit must cover the selected daily slots.",
+        );
+      if (
+        input.autoPublish &&
+        (c.automation?.dailyLimit || 0) < input.times.length
+      )
+        blockers.push("Publishing limit must cover the selected daily slots.");
       if (blockers.length) throw new BadRequestException(blockers.join(" "));
     }
     return this.db.$transaction(async (tx) => {
@@ -258,7 +298,7 @@ export class EditorialService {
       await tx.auditLog.create({
         data: {
           action: "EDITORIAL_POLICY_SAVED",
-          message: `Owner ${input.enabled ? "enabled" : "disabled"} ${input.autoPublish ? "automatic-policy publishing" : "review-only drafting"}; maximum two daily slots; revision ${saved.revision}.`,
+          message: `Owner ${input.enabled ? "enabled" : "disabled"} ${input.autoPublish ? "automatic-policy publishing" : "review-only drafting"}; ${saved.times.length} daily slot(s); revision ${saved.revision}.`,
         },
       });
       return saved;
@@ -301,6 +341,65 @@ export class EditorialService {
     });
     return { created };
   }
+  async enrollLibrary() {
+    return this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
+      const images = await tx.mediaAsset.findMany({
+        where: { provider: "UNSPLASH", rightsConfirmed: true },
+        include: { articles: { select: { articleId: true } } },
+      });
+      let enrolled = 0;
+      for (const image of images) {
+        const meta = image.metadata as Prisma.JsonObject;
+        if (
+          image.articles.length ||
+          meta.automaticPhotoUse ||
+          !meta.providerPhotoId ||
+          meta.licenseCheckedBy !== "owner" ||
+          image.license !== "Unsplash" ||
+          !image.url.startsWith("https://images.unsplash.com/") ||
+          !image.alt
+        )
+          continue;
+        const tags = libraryImageTags(image.title, image.alt);
+        if (!tags.length) continue;
+        const illustration = /3d|render|illustration|logo/i.test(
+          `${image.title} ${image.alt}`,
+        );
+        await tx.mediaAsset.update({
+          where: { id: image.id },
+          data: {
+            metadata: {
+              ...meta,
+              editorialPhoto: {
+                enabled: true,
+                tags,
+                confirmedAt: new Date().toISOString(),
+                confirmedBy: "owner",
+                reviewKind: "OWNER_CURATED_LIBRARY",
+                imageKind: illustration
+                  ? "ILLUSTRATION_OR_LOGO"
+                  : "IMPORTED_IMAGE_UNVERIFIED_ORIGIN",
+              },
+            },
+            attribution:
+              illustration && !image.attribution.includes("Illustration / logo")
+                ? `${image.attribution} - Illustration / logo; not a photograph of the tutorial.`
+                : image.attribution,
+          },
+        });
+        enrolled++;
+      }
+      await tx.auditLog.create({
+        data: {
+          action: "OWNER_CURATED_LIBRARY_ENABLED",
+          entityId: "owner",
+          message: `Owner authorized ${enrolled} manually imported library images for downstream article selection. No automated Unsplash discovery or import. Metadata does not certify non-AI origin.`,
+        },
+      });
+      return { enrolled };
+    });
+  }
   async photo(
     id: string,
     enabled: boolean,
@@ -313,39 +412,40 @@ export class EditorialService {
       enabled &&
       (confirmation !== PHOTO_CONFIRMATION ||
         !photo.rightsConfirmed ||
-        !["WIKIMEDIA", "ORIGINAL"].includes(photo.provider) ||
+        !["WIKIMEDIA", "ORIGINAL", "UNSPLASH"].includes(photo.provider) ||
         ![
           "CC0",
           "Public domain",
           "CC BY 4.0",
           "CC BY-SA 4.0",
           "Original work",
+          "Unsplash",
         ].includes(photo.license) ||
         !photo.alt ||
         !photo.url.startsWith("https://") ||
         !tags.length)
     )
       throw new BadRequestException(
-        "Confirm a real photograph, commercial reuse rights, public HTTPS delivery and relevant keywords. Unsplash images cannot enter unattended selection.",
+        "Confirm a real photograph, commercial reuse rights, public HTTPS delivery and relevant keywords. Manually imported Unsplash assets require curated-library enrollment.",
       );
-    const metadata =
-      photo.metadata &&
-      typeof photo.metadata === "object" &&
-      !Array.isArray(photo.metadata)
-        ? (photo.metadata as Prisma.JsonObject)
-        : {};
     await this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172142)`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172262)`;
+      const currentPhoto = await tx.mediaAsset.findUniqueOrThrow({
+        where: { id },
+      });
       await tx.mediaAsset.update({
         where: { id },
         data: {
           metadata: {
-            ...metadata,
+            ...(currentPhoto.metadata as Prisma.JsonObject),
             editorialPhoto: {
               enabled,
               tags,
               confirmedAt: new Date().toISOString(),
               confirmedBy: "owner",
+              ...(photo.provider === "UNSPLASH"
+                ? { reviewKind: "OWNER_CURATED_LIBRARY" }
+                : {}),
             },
           },
         },
@@ -369,11 +469,11 @@ export class EditorialService {
               lt: start.plus({ days: 1 }).toJSDate(),
             },
           },
-        })) >= 2
+        })) >= c.settings.times.length
       )
         return {
           queued: false,
-          note: "Two editorial slots have already been attempted today. No automatic regeneration retry is allowed.",
+          note: "The configured daily editorial attempt limit has been reached. No automatic text regeneration retry is allowed.",
         };
       for (const slot of editorialSlots(c.settings.times, new Date(), manual)) {
         if (await tx.editorialRun.findUnique({ where: { slotKey: slot.key } }))
@@ -440,6 +540,75 @@ export class EditorialService {
       );
     return policy;
   }
+  /** Retry only saved, unchanged photo-blocked drafts; never replay text or remote writes. */
+  private async recoverPhotos() {
+    await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(8172260)`;
+      const policy = await tx.editorialSettings.findUnique({
+        where: { id: "owner" },
+      });
+      const automation = await tx.automationSettings.findUnique({
+        where: { id: "owner" },
+      });
+      const google = await tx.integration.findUnique({
+        where: { provider: "google" },
+        select: { blogId: true },
+      });
+      if (
+        !policy?.enabled ||
+        !policy.autoPublish ||
+        automation?.paused ||
+        automation?.emergencyStop
+      )
+        return;
+      const now = new Date();
+      const runs = await tx.editorialRun.findMany({
+        where: {
+          state: "BLOCKED_MEDIA",
+          stage: "PHOTO",
+          policyRevision: policy.revision,
+          blogId: google?.blogId || null,
+          slotAt: { gt: new Date(now.getTime() + 10 * 60000) },
+          finishedAt: { lte: new Date(now.getTime() - 2 * 60000) },
+        },
+        orderBy: { slotAt: "asc" },
+        take: 2,
+      });
+      for (const run of runs) {
+        if (!run.articleId) continue;
+        const count = await tx.auditLog.count({
+          where: { action: "EDITORIAL_PHOTO_AUTO_RETRY", entityId: run.id },
+        });
+        if (count >= 3) continue;
+        const article = await tx.article.findUnique({
+          where: { id: run.articleId },
+        });
+        if (
+          !article ||
+          article.version !== run.articleVersion ||
+          article.status !== "NEEDS_REVIEW" ||
+          article.publishingTarget !== "local"
+        )
+          continue;
+        const changed = await tx.editorialRun.updateMany({
+          where: { id: run.id, state: "BLOCKED_MEDIA", stage: "PHOTO" },
+          data: {
+            state: "QUEUED",
+            finishedAt: null,
+            message: `Automatic photo retry ${count + 1}/3 queued. Uses the saved draft; no text regeneration.`,
+          },
+        });
+        if (changed.count)
+          await tx.auditLog.create({
+            data: {
+              action: "EDITORIAL_PHOTO_AUTO_RETRY",
+              entityId: run.id,
+              message: `Attempt ${count + 1}/3 for unchanged saved draft ${article.id}.`,
+            },
+          });
+      }
+    });
+  }
   async tick() {
     if (this.ticking) return;
     this.ticking = true;
@@ -464,6 +633,7 @@ export class EditorialService {
         c.automation?.emergencyStop
       )
         return;
+      await this.recoverPhotos();
       if (
         !(await this.db.editorialRun.findFirst({ where: { state: "QUEUED" } }))
       ) {
@@ -510,8 +680,43 @@ export class EditorialService {
           orderBy: { updatedAt: "desc" },
           take: 30,
         });
+        const imageLed = policy.autoPlan && policy.times.length === 1;
+        const imagePlans = imageLed
+          ? referenceBriefs
+              .map((pack) => {
+                const photo = choosePhoto(
+                  c.photos.filter((p) => !p.articles.length),
+                  `${pack.title} ${pack.intent} ${articlePhotoTerms({ ...pack, generation: null }).join(" ")}`,
+                );
+                return { ...pack, photo };
+              })
+              .filter((plan) => plan.photo)
+          : [];
+        const imagePlan = imageLed
+          ? chooseVariedBrief(
+              imagePlans,
+              recent.map((a) => a.niche),
+            )
+          : undefined;
+        if (imageLed && !imagePlan?.photo)
+          throw new BadRequestException(
+            "No unused library photograph matches the supported source-backed topics. Refill the reviewed library before the next daily slot.",
+          );
+        if (imagePlan?.photo) {
+          run.candidates = [
+            {
+              mediaId: imagePlan.photo.id,
+              title: imagePlan.photo.title,
+              sourceUrl: imagePlan.photo.sourceUrl || "",
+            },
+          ];
+          await this.db.editorialRun.update({
+            where: { id: run.id },
+            data: { candidates: run.candidates as Prisma.InputJsonValue },
+          });
+        }
         let candidate = chooseVariedBrief(
-          c.readyBriefs,
+          imageLed ? [] : c.readyBriefs,
           recent.map((a) => a.niche),
         );
         if (!candidate && policy.autoPlan) {
@@ -519,17 +724,19 @@ export class EditorialService {
             where: { articleId: { not: null } },
           });
           const pack =
+            imagePlan ||
             chooseVariedBrief(
               referenceBriefs,
               recent.map((a) => a.niche),
-            ) || referenceBriefs[count % referenceBriefs.length];
+            ) ||
+            referenceBriefs[count % referenceBriefs.length];
           candidate = await this.db.article.create({
             data: {
               title: `A new practical question about ${pack.niche}`,
               slug: `editorial-topic-${run.id}`,
               niche: pack.niche,
               status: "PLANNED",
-              intent: `Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
+              intent: `${imagePlan?.photo ? `Illustrative image subject: ${imagePlan.photo.title}. ${imagePlan.photo.alt}. Choose an article relevant to this image. It may be a render, illustration or logo; never call it a real photograph or claim it documents executed tests or a product screenshot. ` : ""}Choose a new specific reader problem justified by these primary references. Reference scope: ${pack.intent} Prefer a ${pack.angle} when useful; do not force a repeated title formula. Avoid every supplied existing topic. Do not invent executed tests or unsupported output; record uncertainty when the references cannot substantiate a claim.`,
               planningNotes:
                 "Automatically planned from owner-enabled primary-reference packs across developer topics. This is not a claim of human fact checking or search demand.",
               sources: {
@@ -620,7 +827,27 @@ export class EditorialService {
       let photo = null;
       await this.active(run);
       try {
-        photo = (await this.commons.select(a, searchTerms))?.photo || null;
+        const pinned = Array.isArray(run.candidates)
+          ? run.candidates.find(
+              (v) =>
+                v &&
+                typeof v === "object" &&
+                !Array.isArray(v) &&
+                typeof v.mediaId === "string",
+            )
+          : null;
+        if (
+          pinned &&
+          typeof pinned === "object" &&
+          !Array.isArray(pinned) &&
+          typeof pinned.mediaId === "string"
+        ) {
+          const planned = await this.db.mediaAsset.findUnique({
+            where: { id: pinned.mediaId },
+          });
+          photo = planned && photoPolicy(planned) ? planned : null;
+        } else
+          photo = (await this.commons.select(a, searchTerms))?.photo || null;
       } catch {
         /* Preserve the generated draft if image discovery is unavailable. */
       }
@@ -642,10 +869,20 @@ export class EditorialService {
             state: "BLOCKED_MEDIA",
             stage: "PHOTO",
             articleVersion: a.version,
-            candidates,
+            candidates:
+              Array.isArray(run.candidates) &&
+              run.candidates.some(
+                (v) =>
+                  v &&
+                  typeof v === "object" &&
+                  !Array.isArray(v) &&
+                  typeof v.mediaId === "string",
+              )
+                ? (run.candidates as Prisma.InputJsonValue)
+                : candidates,
             finishedAt: new Date(),
             message:
-              "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text.",
+              "No relevant photo passed the available pool or automatic Commons checks. Review Commons candidates in Media library, confirm real-photo rights and add pool keywords, then resume this photo stage without regenerating text. With automatic publishing enabled, Studio also retries this saved photo stage up to three times, two minutes apart, while the slot is more than ten minutes away.",
           },
         });
         return;

@@ -11,7 +11,7 @@ ENV API_INTERNAL_URL=$API_INTERNAL_URL
 RUN npm run build -w frontend
 FROM build AS runtime
 ENV NODE_ENV=production
-RUN npm prune --omit=dev && chown -R node:node /app/frontend/.next
+RUN npm prune --omit=dev && chmod -R a+rX /app && chown -R node:node /app/frontend/.next
 USER node
 EXPOSE 3100
 CMD ["npm","run","start","-w","frontend"]

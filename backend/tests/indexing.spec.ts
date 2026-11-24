@@ -232,6 +232,7 @@ test("traffic imports use the selected verified property, preserve actual zeros 
     } as never,
     { searchTraffic: traffic } as never,
     { property: async () => "https://blog.example/" } as never,
+    {} as never,
   );
   expect(
     (await service.searchConsole("2026-11-01", "2026-11-02")).imported,
@@ -269,6 +270,7 @@ test("a later Google page failure does not save an earlier partial report", asyn
     } as never,
     { searchTraffic } as never,
     { property: async () => "https://blog.example/" } as never,
+    {} as never,
   );
   await expect(
     service.searchConsole("2026-11-01", "2026-11-02"),
@@ -283,6 +285,7 @@ test("traffic reporting requires separate read permission and sanitizes provider
     { client: async () => ({}), reportingPermissions: permissions } as never,
     { traffic } as never,
     { property: async () => "https://blog.example/" } as never,
+    {} as never,
   );
   await expect(
     service.searchConsole("2026-11-01", "2026-11-02"),

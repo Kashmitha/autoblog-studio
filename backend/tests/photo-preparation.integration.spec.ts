@@ -294,3 +294,114 @@ test("pool rights revoked after selection cannot be attached", async () => {
     (await db.article.findUniqueOrThrow({ where: { id: a.id } })).version,
   ).toBe(a.version);
 });
+
+test("automatic photo stays consumed after detaching and re-reviewing its pool entry", async () => {
+  const first = await draft();
+  const asset = await photo();
+  const attached = await photos.prepare(first.id, first.version);
+  expect(attached.state).toBe("ATTACHED");
+  await db.articleMedia.deleteMany({ where: { articleId: first.id } });
+  const saved = await db.mediaAsset.findUniqueOrThrow({
+    where: { id: asset.id },
+  });
+  expect((saved.metadata as any).automaticPhotoUse.articleId).toBe(first.id);
+  const second = await draft(2);
+  const result = await photos.prepare(second.id, second.version);
+  expect(result.state).toBe("BLOCKED");
+  expect(await db.articleMedia.count({ where: { articleId: second.id } })).toBe(
+    0,
+  );
+});
+
+test("a photo on an old published article is never recycled automatically", async () => {
+  const old = await draft();
+  const asset = await photo();
+  await db.article.update({
+    where: { id: old.id },
+    data: {
+      status: "PUBLISHED",
+      publishedAt: new Date("2020-01-01"),
+      updatedAt: new Date("2020-01-01"),
+    },
+  });
+  await db.articleMedia.create({
+    data: { articleId: old.id, mediaId: asset.id },
+  });
+  const next = await draft(3);
+  expect((await photos.prepare(next.id, next.version)).state).toBe("BLOCKED");
+});
+
+test("reviewed supported import enrolls the photo without a separate pool action", async () => {
+  const fixture = await photo();
+  const {
+    title,
+    url,
+    alt,
+    creator,
+    sourceUrl,
+    provider,
+    license,
+    licenseUrl,
+    attribution,
+    rightsConfirmed,
+  } = fixture;
+  const imported = await agent
+    .post("/api/media")
+    .set("Origin", "http://localhost:3100")
+    .set("X-CSRF-Token", csrf)
+    .send({
+      title,
+      url,
+      alt,
+      creator,
+      sourceUrl,
+      provider,
+      license,
+      licenseUrl,
+      attribution,
+      rightsConfirmed,
+      automaticPhoto: true,
+      photoKeywords: ["laptop", "programming"],
+    })
+    .expect(201);
+  expect(imported.body.metadata.editorialPhoto.enabled).toBe(true);
+  const status = await agent.get("/api/editorial").expect(200);
+  expect(
+    status.body.pool.find((p: { id: string }) => p.id === imported.body.id)
+      .eligible,
+  ).toBe(true);
+});
+
+test("automatic Unsplash enrollment rejects before any provider request", async () => {
+  const fixture = await photo();
+  const {
+    title,
+    url,
+    alt,
+    creator,
+    sourceUrl,
+    licenseUrl,
+    attribution,
+    rightsConfirmed,
+  } = fixture;
+  await agent
+    .post("/api/media")
+    .set("Origin", "http://localhost:3100")
+    .set("X-CSRF-Token", csrf)
+    .send({
+      title,
+      url,
+      alt,
+      creator,
+      sourceUrl,
+      provider: "UNSPLASH",
+      license: "Unsplash",
+      licenseUrl,
+      attribution,
+      rightsConfirmed,
+      automaticPhoto: true,
+      photoKeywords: ["laptop"],
+    })
+    .expect(400);
+  expect(fetch).not.toHaveBeenCalled();
+});
