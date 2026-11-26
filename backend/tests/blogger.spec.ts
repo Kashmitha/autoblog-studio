@@ -125,7 +125,9 @@ test.each([true, false])(
     const original = process.env.TOKEN_ENCRYPTION_KEY;
     process.env.TOKEN_ENCRYPTION_KEY = "ab".repeat(32);
     const upsert = jest.fn();
+    const audit = jest.fn();
     const service = new GoogleService({
+      auditLog: { create: audit },
       oAuthState: {
         findUnique: async () => ({
           sessionId: "session",
@@ -164,6 +166,11 @@ test.each([true, false])(
       if (owns) {
         await service.callback("fixture-code", "fixture-state", "session");
         expect(upsert).toHaveBeenCalledTimes(1);
+        expect(audit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ action: "GOOGLE_AUTH_RESTORED" }),
+          }),
+        );
         expect(upsert.mock.calls[0][0].update).not.toHaveProperty("blogId");
         expect(upsert.mock.calls[0][0].update).not.toHaveProperty(
           "liveTestSucceededAt",

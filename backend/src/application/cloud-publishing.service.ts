@@ -23,6 +23,40 @@ const uncertainMessage =
 
 @Injectable()
 export class CloudPublishingService {
+  private nextReconciliation = 0;
+  /** Verify refresh access before spending generation allowance. No remote writes. */
+  async assertGoogleAccess() {
+    if (env.bloggerMode === "live") await this.google.client();
+  }
+  /** Accepted Blogger schedules must be reconciled even when nobody opens Studio. */
+  async reconcile() {
+    if (env.bloggerMode !== "live" || Date.now() < this.nextReconciliation)
+      return;
+    this.nextReconciliation = Date.now() + 5 * 60000;
+    const integration = await this.db.integration.findUnique({
+      where: { provider: "google" },
+    });
+    if (!integration?.blogId) return;
+    const due = await this.db.article.findMany({
+      where: {
+        publishingTarget: "blogger",
+        remoteBlogId: integration.blogId,
+        remotePostId: { not: null },
+        status: { in: ["SCHEDULED", "PUBLISHING"] },
+        OR: [
+          { remoteSyncedAt: null },
+          { remoteSyncedAt: { lt: new Date(Date.now() - 5 * 60000) } },
+        ],
+      },
+      select: { id: true },
+      orderBy: { scheduledAt: "asc" },
+      take: 20,
+    });
+    for (const article of due) {
+      const result = await this.sync(article.id);
+      if (result.results.some((row) => row.error)) break;
+    }
+  }
   constructor(
     private readonly db: PrismaService,
     private readonly articles: ArticlesService,

@@ -24,7 +24,9 @@ describe("Google refresh recovery", () => {
     };
     const encryptedTokens = encrypt(JSON.stringify(tokens), key);
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const audit = jest.fn().mockResolvedValue({});
     const db = {
+      auditLog: { create: audit },
       integration: {
         findUnique: jest
           .fn()
@@ -43,7 +45,7 @@ describe("Google refresh recovery", () => {
     jest
       .spyOn(service, "oauth")
       .mockReturnValue(client as unknown as ReturnType<GoogleService["oauth"]>);
-    return { service, client, updateMany, encryptedTokens };
+    return { service, client, updateMany, encryptedTokens, audit };
   }
   it("turns invalid_grant into actionable reconnect guidance without changing stored credentials", async () => {
     const f = fixture({
@@ -59,6 +61,11 @@ describe("Google refresh recovery", () => {
     expect(error.getStatus()).toBe(400);
     expect(error.message).toContain("Reconnect Google");
     expect(error.message).not.toContain("fixture");
+    expect(f.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "GOOGLE_AUTH_REQUIRED" }),
+      }),
+    );
     expect(f.updateMany).not.toHaveBeenCalled();
   });
   it("does not mislabel temporary network errors as revoked consent", async () => {

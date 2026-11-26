@@ -9,6 +9,7 @@ import { ArticlesService } from "../src/application/articles.service";
 import { MediaService } from "../src/application/media.service";
 import { CommonsPhotoService } from "../src/application/commons-photo.service";
 import { CloudPublishingService } from "../src/application/cloud-publishing.service";
+import { GoogleReconnectRequiredException } from "../src/infrastructure/blogger.service";
 import { hashPassword } from "../src/domain/security";
 import {
   EDITORIAL_ENABLE,
@@ -88,6 +89,11 @@ beforeEach(async () => {
   generated = 0;
   uncertain = false;
   cloudFails = false;
+  (service as any).nextGoogleCheck = 0;
+  (service as any).googleBlocked = false;
+  jest
+    .spyOn(app.get(CloudPublishingService), "assertGoogleAccess")
+    .mockResolvedValue();
   Object.assign(process.env, {
     COMMONS_AUTO_IMPORT: "false",
     AI_PROVIDER: "openai",
@@ -1136,4 +1142,75 @@ test("one definitive schema rejection uses the same single repair allowance befo
   expect(calls).toBe(2);
   expect((await db.editorialRun.findFirstOrThrow()).state).toBe("SCHEDULED");
   expect(app.get(CloudPublishingService).schedule).toHaveBeenCalledTimes(1);
+});
+
+test.each([false, true])(
+  "expired authorization resumes the saved article without regeneration (missed slot: %s)",
+  async (missed) => {
+    await pool();
+    await enable(true);
+    const cloud = app.get(CloudPublishingService);
+    const normal = (cloud.schedule as jest.Mock).getMockImplementation()!;
+    (cloud.schedule as jest.Mock).mockRejectedValueOnce(
+      new GoogleReconnectRequiredException(),
+    );
+    await service.queue();
+    await service.tick();
+    const run = await db.editorialRun.findFirstOrThrow({
+      where: { state: "WAITING_AUTH" },
+    });
+    const article = await db.article.findUniqueOrThrow({
+      where: { id: run.articleId! },
+    });
+    expect(article.status).toBe("APPROVED");
+    expect(article.draftAttemptedAt).toBeNull();
+    expect(await db.articleMedia.count()).toBe(1);
+    if (missed)
+      await db.editorialRun.update({
+        where: { id: run.id },
+        data: { slotAt: new Date(Date.now() - 3600000) },
+      });
+    (cloud.schedule as jest.Mock).mockImplementation(normal);
+    await service.tick();
+    expect(
+      (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } }))
+        .state,
+    ).toBe("SCHEDULED");
+    expect(generated).toBe(1);
+  },
+);
+test("Google access failure stops paid preparation before generation", async () => {
+  await pool();
+  await enable(true);
+  await service.queue();
+  jest
+    .mocked(app.get(CloudPublishingService).assertGoogleAccess)
+    .mockRejectedValue(new GoogleReconnectRequiredException());
+  await service.tick();
+  await service.tick();
+  expect(generated).toBe(0);
+  expect(app.get(CloudPublishingService).schedule).not.toHaveBeenCalled();
+});
+
+test("changed owner policy never resumes a previously approved auth-waiting article", async () => {
+  await pool();
+  await enable(true);
+  const cloud = app.get(CloudPublishingService);
+  (cloud.schedule as jest.Mock).mockRejectedValueOnce(
+    new GoogleReconnectRequiredException(),
+  );
+  await service.queue();
+  await service.tick();
+  const run = await db.editorialRun.findFirstOrThrow({
+    where: { state: "WAITING_AUTH" },
+  });
+  await db.editorialSettings.update({
+    where: { id: "owner" },
+    data: { revision: { increment: 1 } },
+  });
+  await service.tick();
+  expect(
+    (await db.editorialRun.findUniqueOrThrow({ where: { id: run.id } })).state,
+  ).toBe("WAITING_AUTH");
+  expect(cloud.schedule).toHaveBeenCalledTimes(1);
 });

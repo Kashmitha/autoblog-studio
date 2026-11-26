@@ -109,3 +109,15 @@ Current content checkpoint, 9 November: the owner explicitly authorized verified
 Read PROGRESS.md and inspect configuration presence without printing secrets. Test the configured connection, respect the separate live-publication gate, and continue from the recorded next action. Do not repeat completed setup or ask for secrets in chat.
 
 For the currently running Docker installation, after editing credentials recreate the API/worker with: docker compose --profile app up -d --no-deps --force-recreate backend worker. A simple docker restart does not reload .env.
+
+## Recovering an expired Google authorization
+
+If Blogger scheduling or status reads say Google access expired or was revoked:
+
+1. Open the existing Google Cloud project, then **Google Auth Platform ? Audience**. An External application in **Testing** issues refresh tokens that expire after seven days when Blogger/reporting scopes are requested. For the deployed owner application, use **Publish app / In production** and complete any requirements Google displays. Production status removes that testing expiry; it cannot prevent a user revoking access or other token invalidation.
+2. In Studio **Blog connections**, choose **Reconnect Google** and sign in with the same blog-owning account. Keep the selected blog and existing publishing checkpoints. Do not delete the integration or create another client merely to reconnect.
+3. The worker checks Google access before starting paid automatic preparation. If a confirmed authorization error happened before any Blogger write, the run shows **Waiting Auth**; its approved article and attached photo remain saved. After reconnection it schedules the existing article under the unchanged policy. Missed dates move to an unoccupied future policy slot, without a catch-up burst or another AI draft.
+4. An ambiguous response after a remote write remains **Remote Attention**. Inspect/link the existing Blogger post; never blindly replay it.
+5. The worker checks accepted Blogger schedules every five minutes and saves confirmed LIVE status in Studio. A failed read retains the last confirmed state and displays its error; it does not prove publication failed.
+
+Google reference: https://developers.google.com/identity/protocols/oauth2#expiration

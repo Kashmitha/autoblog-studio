@@ -35,6 +35,8 @@ import {
   ResearchSourceUnavailable,
 } from "../infrastructure/research-source";
 
+import { GoogleReconnectRequiredException } from "../infrastructure/blogger.service";
+
 export type EditorialInput = {
   enabled: boolean;
   autoPublish: boolean;
@@ -46,6 +48,8 @@ export type EditorialInput = {
 @Injectable()
 export class EditorialService {
   private ticking = false;
+  private nextGoogleCheck = 0;
+  private googleBlocked = false;
   constructor(
     private readonly db: PrismaService,
     private readonly articles: ArticlesService,
@@ -156,6 +160,8 @@ export class EditorialService {
             scheduledAt: true,
             publishedAt: true,
             remoteStatus: true,
+            remoteSyncError: true,
+            remoteSyncedAt: true,
             publishingTarget: true,
           },
         },
@@ -173,6 +179,15 @@ export class EditorialService {
       (photo) => photoPolicy(photo) && !photo.articles.length,
     );
     const publishingBlockers = [...c.blockers];
+    const auth = await this.db.auditLog.findFirst({
+      where: {
+        entityId: "google",
+        action: { in: ["GOOGLE_AUTH_REQUIRED", "GOOGLE_AUTH_RESTORED"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (auth?.action === "GOOGLE_AUTH_REQUIRED")
+      publishingBlockers.push(new GoogleReconnectRequiredException().message);
     if (
       process.env.BLOGGER_MODE !== "live" ||
       !c.google?.blogId ||
@@ -239,7 +254,7 @@ export class EditorialService {
               state:
                 run.article.remoteStatus === "LIVE" ? "PUBLISHED" : "SCHEDULED",
               stage: "DONE",
-              message: `Blogger confirmed ${run.article.remoteStatus}. Publication: ${DateTime.fromJSDate(
+              message: `${run.article.remoteSyncError ? "Last confirmed status; refresh failed: " + run.article.remoteSyncError : "Blogger confirmed " + run.article.remoteStatus}. Publication: ${DateTime.fromJSDate(
                 (run.article.remoteStatus === "LIVE"
                   ? run.article.publishedAt
                   : run.article.scheduledAt) || run.slotAt,
@@ -908,6 +923,79 @@ export class EditorialService {
       }
     });
   }
+  /** Only pre-write auth failures can resume an approved article automatically. */
+  private async recoverGoogleHandoffs() {
+    const c = await this.context();
+    if (!c.settings.autoPublish) return;
+    const runs = await this.db.editorialRun.findMany({
+      where: {
+        state: "WAITING_AUTH",
+        policyRevision: c.settings.revision,
+        blogId: c.settings.blogId,
+      },
+      orderBy: { slotAt: "asc" },
+      take: 2,
+    });
+    for (const run of runs) {
+      if (!run.articleId) continue;
+      const article = await this.articles.get(run.articleId);
+      if (
+        article.version !== run.articleVersion ||
+        article.status !== "APPROVED" ||
+        article.publishingTarget !== "local" ||
+        article.remotePostId ||
+        article.draftAttemptedAt ||
+        article.jobs.length
+      )
+        continue;
+      // Never backdate a missed slot or publish a catch-up burst. Reserve the next
+      // unoccupied normal policy slot, including reservations in other runs.
+      let slotAt = run.slotAt;
+      if (slotAt.getTime() < Date.now() + 10 * 60000) {
+        const slots = Array.from({ length: 14 }, (_, offset) =>
+          editorialSlots(
+            c.settings.times,
+            DateTime.now()
+              .setZone("Asia/Colombo")
+              .plus({ days: offset })
+              .toJSDate(),
+            true,
+          ),
+        ).flat();
+        const occupied = await this.db.editorialRun.findMany({
+          where: { id: { not: run.id }, slotAt: { gte: new Date() } },
+          select: { slotAt: true },
+        });
+        const jobs = await this.db.publishJob.findMany({
+          where: {
+            state: { notIn: ["FAILED", "CANCELED"] },
+            scheduledAt: { gte: new Date() },
+          },
+          select: { scheduledAt: true },
+        });
+        const day = (date: Date) =>
+          DateTime.fromJSDate(date).setZone("Asia/Colombo").toISODate();
+        const next = slots.find(
+          (slot) =>
+            slot.at.getTime() > Date.now() + 10 * 60000 &&
+            !occupied.some((row) => day(row.slotAt) === day(slot.at)) &&
+            !jobs.some((row) => day(row.scheduledAt) === day(slot.at)),
+        );
+        if (!next) continue;
+        slotAt = next.at;
+      }
+      await this.db.editorialRun.updateMany({
+        where: { id: run.id, state: "WAITING_AUTH" },
+        data: {
+          state: "QUEUED",
+          slotAt,
+          finishedAt: null,
+          message:
+            "Google reconnected. Resuming saved approval and photo without another AI draft.",
+        },
+      });
+    }
+  }
   async tick() {
     if (this.ticking) return;
     this.ticking = true;
@@ -932,6 +1020,21 @@ export class EditorialService {
         c.automation?.emergencyStop
       )
         return;
+      if (c.settings.autoPublish) {
+        if (Date.now() >= this.nextGoogleCheck) {
+          this.nextGoogleCheck = Date.now() + 5 * 60000;
+          try {
+            await this.cloud.assertGoogleAccess();
+            this.googleBlocked = false;
+          } catch (error) {
+            this.googleBlocked = true;
+            if (!(error instanceof GoogleReconnectRequiredException))
+              throw error;
+          }
+        }
+        if (this.googleBlocked) return;
+        await this.recoverGoogleHandoffs();
+      }
       await this.recoverPhotos();
       await this.recoverPreparation();
       if (
@@ -968,6 +1071,37 @@ export class EditorialService {
       let a;
       if (run.articleId) {
         a = await this.articles.get(run.articleId);
+        if (run.stage === "BLOGGER" && a.status === "APPROVED") {
+          const photoId = a.media[0]?.media.id;
+          if (
+            a.version !== run.articleVersion ||
+            a.publishingTarget !== "local" ||
+            a.remotePostId ||
+            a.draftAttemptedAt ||
+            a.jobs.length ||
+            !run.blogId ||
+            !photoId
+          )
+            throw new ConflictException(
+              "Saved approval changed or remote intent exists; automatic retry stopped.",
+            );
+          await this.cloud.schedule(a.id, run.slotAt.toISOString(), {
+            expectedBlogId: run.blogId,
+            expectedPhotoId: photoId,
+            automatic: true,
+          });
+          await this.db.editorialRun.update({
+            where: { id: run.id },
+            data: {
+              state: "SCHEDULED",
+              stage: "DONE",
+              finishedAt: new Date(),
+              message:
+                "Blogger accepted the saved article and photo after Google reconnection.",
+            },
+          });
+          return;
+        }
         if (
           a.version !== run.articleVersion ||
           a.publishingTarget !== "local" ||
@@ -1555,14 +1689,30 @@ export class EditorialService {
       const saved = current?.articleId
         ? await this.db.article.findUnique({
             where: { id: current.articleId },
-            select: { version: true },
+            select: {
+              version: true,
+              status: true,
+              publishingTarget: true,
+              remotePostId: true,
+              draftAttemptedAt: true,
+              jobs: { select: { id: true } },
+            },
           })
         : null;
+      const waitingAuth =
+        error instanceof GoogleReconnectRequiredException &&
+        current?.stage === "BLOGGER" &&
+        saved?.status === "APPROVED" &&
+        saved.publishingTarget === "local" &&
+        !saved.remotePostId &&
+        !saved.draftAttemptedAt &&
+        !saved.jobs.length;
       await this.db.editorialRun.update({
         where: { id: run.id },
         data: {
-          state:
-            current?.stage === "BLOGGER"
+          state: waitingAuth
+            ? "WAITING_AUTH"
+            : current?.stage === "BLOGGER"
               ? "REMOTE_ATTENTION"
               : waitingSource
                 ? "WAITING_SOURCE"
@@ -1571,8 +1721,9 @@ export class EditorialService {
                   : "NEEDS_REVIEW",
           ...(saved ? { articleVersion: saved.version } : {}),
           finishedAt: new Date(),
-          message:
-            current?.stage === "BLOGGER"
+          message: waitingAuth
+            ? "Waiting for Google reconnection. Approval and photo are saved; no Blogger write was attempted. Scheduling resumes automatically under the unchanged policy after reconnection."
+            : current?.stage === "BLOGGER"
               ? "Inspect Blogger and saved remote intent before any retry. This request will not be replayed automatically."
               : waitingSource || waitingAi
                 ? `Waiting automatically: ${detail} The saved stage will resume with backoff while its slot is future and the original policy remains active.`

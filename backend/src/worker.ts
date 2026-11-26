@@ -10,6 +10,7 @@ import {
   DeferredPublication,
 } from "./application/publishing.service";
 import { PrismaService } from "./infrastructure/prisma.service";
+import { CloudPublishingService } from "./application/cloud-publishing.service";
 import { EditorialService } from "./application/editorial.service";
 async function main() {
   const app = await NestFactory.createApplicationContext(WorkerModule, {
@@ -17,6 +18,7 @@ async function main() {
   });
   const publisher = app.get(PublishingService),
     editorial = app.get(EditorialService),
+    cloud = app.get(CloudPublishingService),
     db = app.get(PrismaService),
     id = randomBytes(8).toString("hex");
   const worker = new Worker(
@@ -58,6 +60,7 @@ async function main() {
         update: { lastSeen: new Date() },
       });
       await publisher.reconcile();
+      await cloud.reconcile();
       await editorial.tick();
     } catch {
       console.error(

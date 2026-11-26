@@ -13,6 +13,7 @@ import {
 import {
   LiveBloggerAdapter,
   GoogleService,
+  GoogleReconnectRequiredException,
 } from "../src/infrastructure/blogger.service";
 import { CloudPublishingService } from "../src/application/cloud-publishing.service";
 import { env } from "../src/config";
@@ -1419,4 +1420,36 @@ test("automatic Blogger handoff accepts its own consumed photo but rejects anoth
       await db.articleMedia.deleteMany({ where: { mediaId: media.id } });
       await db.mediaAsset.delete({ where: { id: media.id } });
     }
+  }));
+
+test("worker reconciliation advances accepted schedules to LIVE without opening Studio or writing another post", async () =>
+  withCloud(async (f) => {
+    await f.cloud.link(f.id, f.remote.id, "LINK EXISTING BLOGGER POST");
+    await db.article.update({
+      where: { id: f.id },
+      data: { remoteSyncedAt: new Date(Date.now() - 6 * 60000) },
+    });
+    f.remote.status = "LIVE";
+    f.remote.published = new Date().toISOString();
+    (f.cloud as any).nextReconciliation = 0;
+    await f.cloud.reconcile();
+    expect(
+      (await db.article.findUniqueOrThrow({ where: { id: f.id } })).status,
+    ).toBe("PUBLISHED");
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.schedule).not.toHaveBeenCalled();
+  }));
+test("expired Google access before duplicate checking creates no remote intent or job", async () =>
+  withCloud(async (f) => {
+    jest
+      .mocked(app.get(GoogleService).posts)
+      .mockRejectedValueOnce(new GoogleReconnectRequiredException());
+    await expect(f.cloud.schedule(f.id, f.at)).rejects.toThrow(
+      "expired or been revoked",
+    );
+    const article = await db.article.findUniqueOrThrow({ where: { id: f.id } });
+    expect(article.status).toBe("APPROVED");
+    expect(article.draftAttemptedAt).toBeNull();
+    expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(0);
+    expect(f.create).not.toHaveBeenCalled();
   }));
