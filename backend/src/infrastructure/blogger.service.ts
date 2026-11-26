@@ -115,6 +115,14 @@ export class GoogleService {
         ),
       },
     });
+    await this.db.auditLog.create({
+      data: {
+        action: "GOOGLE_AUTH_RESTORED",
+        entityId: "google",
+        message:
+          "Owner reconnected Google; existing blog and publishing checkpoints retained.",
+      },
+    });
     return { ok: true };
   }
   async client() {
@@ -136,8 +144,16 @@ export class GoogleService {
     } catch (error) {
       const code = (error as { response?: { data?: { error?: unknown } } })
         ?.response?.data?.error;
-      if (code === "invalid_grant")
+      if (code === "invalid_grant") {
+        await this.db.auditLog.create({
+          data: {
+            action: "GOOGLE_AUTH_REQUIRED",
+            entityId: "google",
+            message: new GoogleReconnectRequiredException().message,
+          },
+        });
         throw new GoogleReconnectRequiredException();
+      }
       throw error;
     }
     await this.db.integration.updateMany({
