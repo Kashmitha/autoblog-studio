@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
   ExternalLink,
@@ -30,6 +30,12 @@ export function Connections({ notify }: ViewProps) {
     [posts, setPosts] = useState<
       { id: string; title: string; url: string; status: string }[]
     >([]);
+  const [oauthReturn, setOauthReturn] = useState("");
+  useEffect(() => {
+    setOauthReturn(
+      new URLSearchParams(window.location.search).get("oauth") || "",
+    );
+  }, []);
   const d = r.data;
   return (
     <>
@@ -49,13 +55,46 @@ export function Connections({ notify }: ViewProps) {
                   <h2>Google Blogger</h2>
                   <p className="subtle small">Official API v3 · OAuth 2.0</p>
                 </div>
-                <Badge value={d.google ? "CONNECTED" : "NOT_CONNECTED"} />
+                <Badge
+                  value={
+                    d.googleAuthorization?.reconnectRequired
+                      ? "RECONNECT_REQUIRED"
+                      : d.google
+                        ? "CONNECTED"
+                        : "NOT_CONNECTED"
+                  }
+                />
               </div>
               <Notice tone={d.bloggerMode === "live" ? "warning" : "info"}>
                 {d.bloggerMode === "mock"
                   ? "Mock publishing is enabled. No real blog posts will be created."
                   : "Live mode is enabled. Only approved content can publish; the initial test is separately gated."}
               </Notice>
+              {oauthReturn === "denied" && (
+                <Notice tone="warning">
+                  Google authorization was not completed. No replacement
+                  credentials were saved. Choose Reconnect Google and finish
+                  Google's account and permission prompts.
+                </Notice>
+              )}
+              {d.googleAuthorization?.reconnectRequired && (
+                <Notice tone="warning">
+                  Google rejected the saved authorization. Automatic Blogger
+                  scheduling is waiting for a new Google grant; stored
+                  credentials do not mean the connection is working. Choose
+                  Reconnect Google below and complete Google's prompts. If the
+                  OAuth app is still in Testing, move it to In production first
+                  to avoid its seven-day test-token expiry.
+                </Notice>
+              )}
+              {oauthReturn === "connected" &&
+                !d.googleAuthorization?.reconnectRequired && (
+                  <Notice>
+                    Google authorization was saved. Test the connection below.
+                    Saved automatic runs resume within five minutes under the
+                    unchanged publishing policy.
+                  </Notice>
+                )}
               {d.google ? (
                 <>
                   <p className="small subtle">
@@ -78,14 +117,18 @@ export function Connections({ notify }: ViewProps) {
                       disabled={a.busy}
                       onClick={() =>
                         a.run(async () => {
-                          const result = await api<{ ownedBlogs: number }>(
-                            "/integrations/google/test",
-                          );
-                          notify(
-                            result.ownedBlogs > 0
-                              ? `Google connection verified. ${result.ownedBlogs} owned blog${result.ownedBlogs === 1 ? "" : "s"} found.`
-                              : "Google connection verified, but no owned blogs were returned. Check your Blogger account.",
-                          );
+                          try {
+                            const result = await api<{ ownedBlogs: number }>(
+                              "/integrations/google/test",
+                            );
+                            notify(
+                              result.ownedBlogs > 0
+                                ? `Google connection verified. ${result.ownedBlogs} owned blog${result.ownedBlogs === 1 ? "" : "s"} found.`
+                                : "Google connection verified, but no owned blogs were returned. Check your Blogger account.",
+                            );
+                          } finally {
+                            await r.reload();
+                          }
                         })
                       }
                     >
@@ -104,21 +147,14 @@ export function Connections({ notify }: ViewProps) {
                     >
                       Load owned blogs
                     </button>
-                    <button
-                      className="secondary"
-                      disabled={a.busy || !d.googleConfigured}
-                      onClick={() =>
-                        a.run(async () => {
-                          const result = await api<{ url: string }>(
-                            "/integrations/google/connect",
-                          );
-                          window.location.href = result.url;
-                        })
-                      }
-                    >
-                      <Link2 size={15} />
-                      Reconnect Google
-                    </button>
+                    {d.googleConfigured && (
+                      <a
+                        className="button secondary"
+                        href="/api/integrations/google/reconnect"
+                      >
+                        <Link2 size={15} /> Reconnect Google
+                      </a>
+                    )}
                   </div>
                   <p className="small subtle spaced">
                     If access expires, reconnect with the same Google account

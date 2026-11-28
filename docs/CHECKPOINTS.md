@@ -121,3 +121,5 @@ If Blogger scheduling or status reads say Google access expired or was revoked:
 5. The worker checks accepted Blogger schedules every five minutes and saves confirmed LIVE status in Studio. A failed read retains the last confirmed state and displays its error; it does not prove publication failed.
 
 Google reference: https://developers.google.com/identity/protocols/oauth2#expiration
+
+Changing Google Cloud to **In production** does not replace a refresh token already issued in Testing. Complete a fresh consent flow using **Blog connections ? Reconnect Google**, then return to Studio. The badge shows **Reconnect required** after a rejected grant; cancelled consent shows a warning and keeps the old credentials. Only a successful callback records restored authorization. The direct reconnect route uses the signed-in Studio session and an uncached redirect. Connection tests refresh the badge on both success and failure. A healthy worker means its process is running; it does not mean Google has authorized publication.

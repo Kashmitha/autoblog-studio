@@ -8,7 +8,7 @@ import { requireSecret } from "../config";
 export class GoogleReconnectRequiredException extends BadRequestException {
   constructor() {
     super(
-      "Google access has expired or been revoked. Open Blog connections and choose Reconnect Google, sign in with the same blog-owning account, then test the connection and retry scheduling. Your saved articles and approvals are kept.",
+      "Google access has expired or been revoked. Open Blog connections and choose Reconnect Google, sign in with the same blog-owning account, then test the connection. Saved automatic runs resume after reconnection; articles, approvals and images are kept.",
     );
   }
 }
@@ -36,6 +36,14 @@ export class GoogleService {
         sessionId,
         verifier: pkce.codeVerifier,
         expiresAt: new Date(Date.now() + 10 * 60000),
+      },
+    });
+    await this.db.auditLog.create({
+      data: {
+        action: "GOOGLE_AUTH_STARTED",
+        entityId: "google",
+        message:
+          "Owner started Google consent. Existing credentials remain unchanged until a successful callback.",
       },
     });
     return {

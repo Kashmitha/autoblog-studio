@@ -95,7 +95,9 @@ test("Search Console connection requests read access without adding Analytics pe
   const generateAuthUrl = jest
     .fn()
     .mockReturnValue("https://accounts.google.com/fixture");
+  const audit = jest.fn();
   const service = new GoogleService({
+    auditLog: { create: audit },
     oAuthState: { create: jest.fn() },
   } as never);
   jest.spyOn(service, "oauth").mockReturnValue({
@@ -107,6 +109,14 @@ test("Search Console connection requests read access without adding Analytics pe
   } as never);
   try {
     await service.connect("fixture-session", false, true);
+    expect(audit).toHaveBeenCalledWith({
+      data: {
+        action: "GOOGLE_AUTH_STARTED",
+        entityId: "google",
+        message: expect.any(String),
+      },
+    });
+    expect(JSON.stringify(audit.mock.calls)).not.toContain("verifier");
     expect(generateAuthUrl.mock.calls[0][0]).toMatchObject({
       include_granted_scopes: true,
       scope: [
