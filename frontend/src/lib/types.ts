@@ -182,6 +182,10 @@ export interface Settings {
   sitemapValid: boolean;
 }
 export interface Integrations {
+  googleAuthorization?: {
+    reconnectRequired: boolean;
+    checkedAt: string | null;
+  };
   google: null | {
     blogId?: string;
     blogUrl?: string;

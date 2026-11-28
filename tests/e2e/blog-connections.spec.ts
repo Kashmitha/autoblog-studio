@@ -9,6 +9,8 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
   await page.route("**/api/seo/indexing/refresh-due", (route) =>
     route.fulfill({ status: 201, json: { results: [], remaining: 0 } }),
   );
+  let reconnectRequired = true;
+  let testFails = false;
   let blogs: { id: string; name: string; url: string }[] = [
     {
       id: "fixture-blog",
@@ -46,6 +48,10 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
           blogId: null,
           blogUrl: null,
         },
+        googleAuthorization: {
+          reconnectRequired,
+          checkedAt: new Date().toISOString(),
+        },
         bloggerMode: "mock",
         aiEnabled: false,
         aiConfigured: false,
@@ -63,9 +69,29 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
     route.fulfill({ json: blogs }),
   );
   await page.route("**/api/integrations/google/test", (route) =>
-    route.fulfill({ json: { ok: true, ownedBlogs: blogs.length } }),
+    route.fulfill(
+      testFails
+        ? {
+            status: 400,
+            json: { message: "Google access has expired or been revoked." },
+          }
+        : { json: { ok: true, ownedBlogs: blogs.length } },
+    ),
   );
-  await page.goto("/connections");
+  await page.goto("/connections?oauth=denied");
+  await expect(
+    page.getByText("reconnect required", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Google authorization was not completed/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Google rejected the saved authorization/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Reconnect Google", exact: true }),
+  ).toHaveAttribute("href", "/api/integrations/google/reconnect");
+  reconnectRequired = false;
   await page.getByRole("button", { name: "Load owned blogs" }).click();
   await expect(
     page.getByRole("combobox", { name: "Owned blog", exact: true }),
@@ -85,6 +111,21 @@ test("blog discovery renders a selectable blog and a useful genuine-empty state"
     .getByRole("button", { name: "Test connection", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("1 owned blog found");
+  await expect(
+    page.getByText("reconnect required", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText("connected", { exact: true })).toBeVisible();
+  testFails = true;
+  reconnectRequired = true;
+  await page
+    .getByRole("button", { name: "Test connection", exact: true })
+    .click();
+  await expect(
+    page.getByText("reconnect required", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Google rejected the saved authorization/),
+  ).toBeVisible();
   blogs = [];
   await page.getByRole("button", { name: "Load owned blogs" }).click();
   await expect(

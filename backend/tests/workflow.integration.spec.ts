@@ -1453,3 +1453,53 @@ test("expired Google access before duplicate checking creates no remote intent o
     expect(await db.publishJob.count({ where: { articleId: f.id } })).toBe(0);
     expect(f.create).not.toHaveBeenCalled();
   }));
+
+test("saved Google credentials show reconnect-required until the replacement grant is saved", async () =>
+  withCloud(async () => {
+    const ids: string[] = [];
+    const base = Date.now();
+    try {
+      for (const [index, action, expected] of [
+        [0, "GOOGLE_AUTH_REQUIRED", true],
+        [1, "GOOGLE_AUTH_STARTED", true],
+        [2, "GOOGLE_AUTH_RESTORED", false],
+      ] as const) {
+        const log = await db.auditLog.create({
+          data: {
+            action,
+            entityId: "google",
+            message: "Isolated authorization state fixture",
+            createdAt: new Date(base + index),
+          },
+        });
+        ids.push(log.id);
+        const response = await agent.get("/api/integrations").expect(200);
+        expect(response.body.googleAuthorization.reconnectRequired).toBe(
+          expected,
+        );
+        expect(JSON.stringify(response.body)).not.toContain("encryptedTokens");
+      }
+    } finally {
+      await db.auditLog.deleteMany({ where: { id: { in: ids } } });
+    }
+  }));
+test("direct reconnect uses the signed-in owner's OAuth session and cannot cache its redirect", async () => {
+  await request(app.getHttpServer())
+    .get("/api/integrations/google/reconnect")
+    .expect(401);
+  const connect = jest
+    .spyOn(app.get(GoogleService), "connect")
+    .mockResolvedValue({ url: "https://accounts.google.com/fixture-consent" });
+  try {
+    const response = await agent
+      .get("/api/integrations/google/reconnect")
+      .expect(302);
+    expect(response.headers.location).toBe(
+      "https://accounts.google.com/fixture-consent",
+    );
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(connect).toHaveBeenCalledWith(expect.any(String));
+  } finally {
+    connect.mockRestore();
+  }
+});

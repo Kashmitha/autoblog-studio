@@ -198,9 +198,17 @@ export class StudioController {
     };
   }
   @Get("integrations") async integrations() {
-    const [search, permissions] = await Promise.all([
+    const [search, permissions, authorization] = await Promise.all([
       this.search.configuration(),
       this.google.reportingPermissions(),
+      this.db.auditLog.findFirst({
+        where: {
+          entityId: "google",
+          action: { in: ["GOOGLE_AUTH_REQUIRED", "GOOGLE_AUTH_RESTORED"] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { action: true, createdAt: true },
+      }),
     ]);
     const google = await this.db.integration.findUnique({
       where: { provider: "google" },
@@ -215,6 +223,11 @@ export class StudioController {
     });
     return {
       google,
+      googleAuthorization: {
+        reconnectRequired:
+          !!google && authorization?.action === "GOOGLE_AUTH_REQUIRED",
+        checkedAt: authorization?.createdAt || null,
+      },
       bloggerMode: env.bloggerMode,
       aiEnabled: aiConfiguration().ready,
       aiConfigured: aiConfiguration().configured,
@@ -248,6 +261,14 @@ export class StudioController {
       analytics === "true",
       searchConsole === "true",
     );
+  }
+  @Get("integrations/google/reconnect") async reconnect(
+    @Req() req: AuthRequest,
+    @Res() res: Response,
+  ) {
+    const { url } = await this.google.connect(req.session!.id);
+    res.setHeader("Cache-Control", "no-store");
+    return res.redirect(url);
   }
   @Get("integrations/google/callback") async callback(
     @Req() req: AuthRequest,
